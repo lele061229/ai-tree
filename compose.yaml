@@ -1,4 +1,6 @@
-name: knowledge-os
+# Version retained for the existing Compose 1.29.2 pilot server.
+# Always invoke through deploy/compose.sh, which fixes the project name.
+version: "3.8"
 services:
   db:
     image: mysql:8.4
@@ -31,7 +33,7 @@ services:
       ADMIN_USER: ${ADMIN_USER:-admin}
       ADMIN_PASSWORD_FILE: /run/secrets/admin_password
       APP_ORIGIN: ${APP_ORIGIN:?Set APP_ORIGIN in .env}
-      COOKIE_SECURE: "true"
+      COOKIE_SECURE: ${COOKIE_SECURE:-true}
       AI_BASE_URL: ${AI_BASE_URL:-}
       AI_MODEL: ${AI_MODEL:-}
       AI_API_KEY_FILE: /run/secrets/ai_api_key

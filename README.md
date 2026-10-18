@@ -12,6 +12,8 @@
 - [验证结果与未验证项目](docs/VALIDATION.md)
 - [第三方依赖与许可证元数据](docs/DEPENDENCIES.md)
 
+无域名的个人试运行可先用 SSH 隧道，见自部署文档。部署统一通过 `bash deploy/compose.sh`，自动兼容 V2 与现有 Compose 1.29.2，并固定独立项目名。初始化可用 `bash deploy/initialize.sh`，不依赖服务器的系统 Python。
+
 真实版尚需目标服务器环境与模型配置才能完成部署验收。此仓库不是已上线生产系统的证明。
 
 ## 架构与代码
@@ -52,6 +54,8 @@ npm test
 ## 完整软件资产
 
 保留 Git 仓库与历史、源码、依赖锁、数据库迁移、AI Prompt 和适配器、接口说明、运行文档、测试与验证记录，以及备份恢复脚本。交付包另附 Git bundle，可恢复完整提交历史。代码不能依赖作者机器上的私有路径或真实密钥。
+
+在已提交的干净工作区运行 `python3 deploy/package_release.py /绝对路径/release.tar.gz` 或以 `.zip` 为输出扩展名，可重建含校验清单和完整 Git 历史的交付包。
 
 当前 V1 支持授权文本 / Markdown 手动导入；直接读取 ChatGPT 历史、真正的 Skill 同步插件、PDF / Word 解析、完整节点编辑与独立能力验证、多用户注册与计费均未实现。
 

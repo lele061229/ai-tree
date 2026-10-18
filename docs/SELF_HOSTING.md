@@ -19,24 +19,52 @@
 
 确认阿里云实例操作系统、CPU/内存/磁盘、现有 Docker / Nginx / 数据库、现有域名与网站、可用端口。先核对 `18080` 与 Compose 项目名 `knowledge-os` 是否已占用。以下命令不应在环境未知时直接整体执行。
 
-MySQL 不映射公网端口；应用只绑定服务器回环地址 `127.0.0.1:18080`。公网访问由现有 Nginx 的独立 HTTPS 域名配置转发。此方案不需要自动购买阿里云 RDS；如后续选用 RDS，可通过服务器配置中的连接参数替换数据库地址。
+MySQL 不映射公网端口；应用只绑定服务器回环地址 `127.0.0.1:18080`。可以通过 SSH 隧道私密试运行，或由独立 HTTPS 入口转发。HTTPS 入口可使用域名或受信任证书覆盖的公网 IP。此方案不需要自动购买阿里云 RDS；如后续选用 RDS，可通过服务器配置中的连接参数替换数据库地址。
+
+部署命令统一使用 `bash deploy/compose.sh`：自动选择 Compose V2 或现有 `docker-compose`，固定项目名 `knowledge-os`、源码目录和配置文件。Compose 文件保留 `version: "3.8"` 以兼容旧版。Compose V2 可能提示该字段已过时；不影响解析。旧版兼容仅用于受控试运行，不代表老操作系统已获得生产支持。备份与恢复使用同一入口，避免切换命令或当前目录时误选其他项目。
 
 ## 首次运行
 
-准备 Docker Engine 与 Compose 插件，将完整仓库放入独立目录，例如 `/opt/knowledge-os`。需要先解析自己的域名并准备对应 HTTPS 证书。
+准备 Docker Engine 与 Compose，将完整仓库放入独立目录，例如 `/opt/knowledge-os`。HTTPS 方式需要先准备覆盖访问域名或 IP 的证书；私密试运行可以先使用下文的 SSH 隧道。
 
 ```sh
-python3 deploy/init_secrets.py --origin https://knowledge.example.com
-docker compose up -d --build
-docker compose ps
+bash deploy/initialize.sh --origin https://knowledge.example.com
+bash deploy/compose.sh config -q
+bash deploy/compose.sh up -d --build
+bash deploy/compose.sh ps
 curl --fail http://127.0.0.1:18080/api/health
 ```
 
-将示例域名替换为实际域名；初始化脚本拒绝覆盖已有 `.env` 或 `.secrets`。配置与密钥不进入 Git。初始化产生 admin 账号的随机初始密码，密码保存在服务器 `.secrets/admin_password`。在服务器本地读取后登录，不要将文件上传到仓库。`.secrets` 父目录仅所属用户可访问，文件以只读 Docker secrets 挂载给非 root 应用容器。
+将示例地址替换为实际 HTTPS 地址；初始化脚本拒绝覆盖已有 `.env` 或 `.secrets`。`initialize.sh` 使用 Dockerfile 中相同的 Python 基础镜像运行独立初始化脚本，不需要升级服务器上的 Python。容器不联网，只将本项目独立目录挂载为可写；镜像首次获取由 Docker 执行。`:z` 仅共享标记本项目目录，兼容启用 SELinux 的主机，勿在混有其他项目的目录内运行。
+
+配置与密钥不进入 Git。初始化产生 admin 账号的随机初始密码，密码保存在服务器 `.secrets/admin_password`。在服务器本地读取后登录，不要将文件上传到仓库。`.secrets` 父目录仅所属用户可访问，文件以只读 Docker secrets 挂载给非 root 应用容器。
 
 容器启动先执行 Alembic 迁移，再首次创建 admin；已有账号不会被重建或自动改密码。使用 `deploy/nginx.example.conf` 新增一个站点配置，按实际证书与端口修改，先运行 `nginx -t`，通过后再重载。已有 Nginx 网站配置不应被整体替换。
 
 首次登录为空知识空间，导入一份小资料建立自己的能力树；不会把原型里的虚构个人项目当作你的真实知识。
+
+## 无域名的私密试运行
+
+只在尚未初始化的新目录中执行。应用仍绑定回环地址，不新增公网 HTTP 入口，不需要修改原 Nginx 网站配置：
+
+```sh
+bash deploy/initialize.sh --local-tunnel --origin http://127.0.0.1:18080
+bash deploy/compose.sh config -q
+bash deploy/compose.sh up -d --build
+curl --fail http://127.0.0.1:18080/api/health
+```
+
+`--local-tunnel` 只接受精确的 `http://127.0.0.1:18080`。此模式 Cookie 不带 Secure；浏览器到服务器的连接必须经 SSH 加密隧道。初始化和后端均拒绝以该选项启用公网 HTTP。
+
+在自己电脑的 PowerShell 中建立隧道，替换服务器登录名、SSH 端口和 IP：
+
+```powershell
+ssh -p SSH端口 -N -L 127.0.0.1:18080:127.0.0.1:18080 -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 登录名@公网IP
+```
+
+隧道窗口保持打开，在同一台电脑浏览器访问 `http://127.0.0.1:18080`。密码在本机终端交互输入，不贴到聊天或命令参数。SSH 主机指纹通过可信渠道核对，不关闭主机校验。首次连接应使用当前可用的 SSH 登录方式，不修改系统 SSH 配置来强制使用此示例。
+
+从隧道切换到 IP HTTPS 时，先准备证书与自动续期，添加独立入口，再将服务器 `.env` 的 `APP_ORIGIN` 改成最终 HTTPS 地址、`COOKIE_SECURE` 改为 `true`，重建 app 容器。旧的回环 Cookie 不会发送到公网 IP，需重新登录。IP 证书可参考 [Let's Encrypt 官方说明](https://letsencrypt.org/2026/03/11/shorter-certs-certbot)；短期证书必须自动续期并重载 Web 服务器。不要为申请证书而直接停掉现有 Nginx。
 
 ## 配置模型
 
@@ -45,10 +73,10 @@ curl --fail http://127.0.0.1:18080/api/health
 在服务器编辑 `.env` 中的 `AI_BASE_URL`（包含 `/v1` 等供应商要求的路径）和 `AI_MODEL`。在服务器本地将密钥写入 `.secrets/ai_api_key`，不要把密钥写进页面或 Git。配置后重建应用容器以重新读取环境：
 
 ```sh
-docker compose up -d --force-recreate app
+bash deploy/compose.sh up -d --force-recreate app
 ```
 
-数据库使用独立持久卷，不会因为重建应用容器丢失。不要执行 `docker compose down -v`，它会删除数据库卷。
+数据库使用独立持久卷，不会因为重建应用容器丢失。不要执行 `bash deploy/compose.sh down -v`，它会删除数据库卷。
 
 ## 备份与恢复演练
 

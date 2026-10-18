@@ -40,6 +40,8 @@ class Settings:
         secure = os.getenv('COOKIE_SECURE', 'true').lower() == 'true'
         if secure and not origin.startswith('https://'):
             raise RuntimeError('Secure-cookie deployment requires an HTTPS APP_ORIGIN')
+        if not secure and origin != 'http://127.0.0.1:18080':
+            raise RuntimeError('Non-secure cookies are permitted only for the fixed loopback SSH-tunnel origin')
         ai_url = os.getenv('AI_BASE_URL', '').rstrip('/')
         if ai_url and not ai_url.startswith('https://'):
             raise RuntimeError('AI_BASE_URL must use HTTPS')
