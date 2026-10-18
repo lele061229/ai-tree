@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="AI Knowledge OS：从基础知识到工程实践，让每一项能力与真实项目相连。虚构数据交互原型。">
+  <meta name="theme-color" content="#f7f8f4"><meta name="robots" content="noindex,nofollow">
+  <title>AI Knowledge OS · 个人能力树</title>
+  <link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <aside class="sidebar">
+    <a class="brand" href="#" aria-label="AI Knowledge OS 首页"><span class="brand-mark">k<span>↗</span></span><span>Knowledge<span class="brand-sub">OS / PERSONAL EDITION</span></span></a>
+    <div class="workspace-label">我的学习空间 <span>⌄</span></div>
+    <nav aria-label="主导航">
+      <button class="nav-item active" data-view="tree"><span data-icon="tree"></span>能力树<span class="nav-count">14</span></button>
+      <button class="nav-item" data-view="tasks"><span data-icon="checklist"></span>学习清单<span class="nav-count" id="task-count"></span></button>
+      <button class="nav-item" data-view="projects"><span data-icon="box"></span>项目证据<span class="nav-count">3</span></button>
+    </nav>
+    <div class="sidebar-section">正在探索</div>
+    <button class="recent-item" data-node="cicd"><span class="small-dot amber"></span>CI / CD 流水线<span>↗</span></button>
+    <button class="recent-item" data-node="api"><span class="small-dot green"></span>API 与接口设计<span>↗</span></button>
+    <div class="sidebar-note"><span class="note-sprout" data-icon="sprout"></span><p>知识不是收藏。<br>是你能用它做什么。</p><span class="mono">LEARN. BUILD. CONNECT.</span></div>
+    <div class="profile"><span class="avatar">林</span><span>林同学的能力地图<small>虚构示例空间</small></span><span class="profile-dot"></span></div>
+  </aside>
+  <main>
+    <header class="topbar"><div class="breadcrumbs">我的空间 <span>/</span> <strong id="page-crumb">能力树</strong></div><div class="topbar-right"><span class="private-badge"><span data-icon="lock"></span>私密空间</span><span class="demo-badge">示例数据</span></div></header>
+    <div class="page-heading"><div><div class="eyebrow">A MAP OF WHAT YOU CAN DO</div><h1 id="page-title">让知识，长成能力<span>。</span></h1><p id="page-description">从基础出发，在项目里生根。探索你的每一步如何相连。</p></div><button class="guide-button" id="guide-button"><span data-icon="help"></span><span>探索指南</span></button></div>
+    <div class="workspace-body">
+      <section class="main-panel">
+        <div class="tree-view" id="tree-view">
+          <div class="canvas-toolbar"><div class="filter-group" aria-label="能力状态筛选"><button class="filter active" data-filter="all">全部能力 <span>14</span></button><button class="filter" data-filter="learning"><i class="small-dot amber"></i>学习中</button><button class="filter" data-filter="mastered"><i class="small-dot green"></i>已掌握</button><button class="filter" data-filter="review"><i class="small-dot coral"></i>待巩固</button></div><button class="icon-button search-toggle" id="search-toggle" aria-label="搜索能力"><span data-icon="search"></span></button></div>
+          <div class="search-box" id="search-box" hidden><span data-icon="search"></span><input id="node-search" type="search" placeholder="搜索能力、项目，例如 Git" autocomplete="off"><span id="search-count" class="mono"></span><button class="icon-button" id="search-close" aria-label="关闭搜索">×</button></div>
+          <div class="graph-shell" id="graph-shell" aria-label="交互能力树：上方项目，中间工程实践，下方基础知识">
+            <div class="canvas-top"><span class="canvas-caption"><span class="pulse-dot"></span>个人能力地图 <small>v0.1</small></span><span class="canvas-hint">拖动画布 · 点击节点探索</span></div>
+            <div class="graph-viewport" id="graph-viewport"><div class="graph-world" id="graph-world"><svg id="connections" viewBox="0 0 1000 710" aria-hidden="true"></svg><div class="layer-label project-label"><span>03</span> 项目实践 <small>让能力有据可查</small></div><div class="layer-label engineering-label"><span>02</span> 工程实践 <small>从能运行到能交付</small></div><div class="layer-label foundation-label"><span>01</span> 基础知识 <small>一切从这里生长</small></div><div id="nodes"></div></div></div>
+            <div class="canvas-bottom"><span class="map-direction">↑ 从基础到实践</span><div class="zoom-controls"><button class="icon-button" id="zoom-out" aria-label="缩小">−</button><span id="zoom-value" class="mono">100%</span><button class="icon-button" id="zoom-in" aria-label="放大">+</button><span class="control-separator"></span><button class="icon-button" id="fit" aria-label="适应画布"><span data-icon="fit"></span></button></div></div>
+            <div class="empty-search" id="empty-search" hidden><span data-icon="search"></span><strong>没有找到这个能力</strong><p>试试「部署」「Python」或清除筛选。</p><button class="text-button" id="clear-filters">显示全部能力</button></div>
+          </div>
+          <div class="map-footer"><div class="legend"><span><i class="small-dot green"></i>已掌握</span><span><i class="small-dot amber"></i>学习中</span><span><i class="small-dot coral"></i>待巩固</span><span><i class="small-dot gray"></i>待探索</span></div><span class="mono" id="map-summary"></span></div>
+          <div class="next-step"><div class="next-step-icon" data-icon="route"></div><div><span class="eyebrow">NEXT SMALL STEP</span><p id="next-step-text">把测试接入 CI，让每一次提交都有质量反馈。</p></div><button id="next-step-button" aria-label="查看 CI/CD 学习任务">继续学习 <span>↗</span></button></div>
+        </div>
+        <section id="tasks-view" class="alternate-view" hidden></section>
+        <section id="projects-view" class="alternate-view" hidden></section>
+      </section>
+      <aside class="detail-panel" id="detail-panel" aria-label="节点详情"></aside>
+    </div>
+    <footer class="page-footer"><span>每一条连线，都是下一步的方向。</span><span>虚构数据原型 · 进度仅保存在当前浏览器</span></footer>
+  </main>
+  <div class="modal-backdrop" id="guide-modal" hidden><section class="guide-modal" role="dialog" aria-modal="true" aria-labelledby="guide-title"><button class="icon-button modal-close" id="guide-close" aria-label="关闭指南">×</button><span class="eyebrow">WELCOME TO YOUR KNOWLEDGE OS</span><h2 id="guide-title">从一个节点开始。</h2><p>这里不是知识收藏夹，而是连接「知道」「做到」和「证明」的能力地图。</p><ol><li><strong>从下往上看</strong><span>底层是基础，中层是工程实践，顶层是项目。</span></li><li><strong>点击一个节点</strong><span>阅读说明、完成学习任务、查阅证据与常错点。</span></li><li><strong>追踪它的来路</strong><span>点击「高亮前置路径」，查看先学什么、再做什么。</span></li></ol><div class="guide-note">所有人物、项目和证据均为虚构示例。无需连接账号。</div><button class="primary-button" id="guide-start">开始探索 <span>↗</span></button></section></div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script src="data.js"></script><script src="app.js"></script>
+</body></html>
