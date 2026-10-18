@@ -1,0 +1,54 @@
+name: knowledge-os
+services:
+  db:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: knowledge_os
+      MYSQL_USER: knowledge_os
+      MYSQL_PASSWORD_FILE: /run/secrets/db_password
+      MYSQL_ROOT_PASSWORD_FILE: /run/secrets/db_root_password
+    command: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci"]
+    secrets: [db_password, db_root_password]
+    volumes: [mysql_data:/var/lib/mysql]
+    healthcheck:
+      test: ["CMD-SHELL", "MYSQL_PWD=$$(cat /run/secrets/db_password) mysql --user=knowledge_os --database=knowledge_os --execute='SELECT 1' >/dev/null 2>&1"]
+      interval: 5s
+      timeout: 4s
+      retries: 30
+      start_period: 30s
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db: {condition: service_healthy}
+    ports: ["127.0.0.1:${APP_PORT:-18080}:8000"]
+    environment:
+      DB_HOST: db
+      DB_NAME: knowledge_os
+      DB_USER: knowledge_os
+      DB_PASSWORD_FILE: /run/secrets/db_password
+      ADMIN_USER: ${ADMIN_USER:-admin}
+      ADMIN_PASSWORD_FILE: /run/secrets/admin_password
+      APP_ORIGIN: ${APP_ORIGIN:?Set APP_ORIGIN in .env}
+      COOKIE_SECURE: "true"
+      AI_BASE_URL: ${AI_BASE_URL:-}
+      AI_MODEL: ${AI_MODEL:-}
+      AI_API_KEY_FILE: /run/secrets/ai_api_key
+    secrets: [db_password, admin_password, ai_api_key]
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health',timeout=3)"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+secrets:
+  db_password: {file: .secrets/db_password}
+  db_root_password: {file: .secrets/db_root_password}
+  admin_password: {file: .secrets/admin_password}
+  ai_api_key: {file: .secrets/ai_api_key}
+volumes:
+  mysql_data:

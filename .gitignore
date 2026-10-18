@@ -1,0 +1,9 @@
+.env
+.secrets/
+__pycache__/
+.pytest_cache/
+*.pyc
+*.db
+backups/
+*.sql.gz
+.venv/

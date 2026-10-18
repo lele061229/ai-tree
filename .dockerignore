@@ -1,0 +1,11 @@
+.git
+.env
+.secrets
+.venv
+__pycache__
+**/__pycache__
+.pytest_cache
+backups
+*.db
+*.zip
+node_modules

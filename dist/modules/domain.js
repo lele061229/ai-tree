@@ -15,5 +15,5 @@ export function applyBatch(snapshot,batch,{ackConflict=false}={}){
  validateGraph(next.nodes);next.applied.push(batch.id);next.version=snapshot.version+1;next.title=batch.title;next.time=new Date().toISOString();next.summary=batch.summary;
  return{snapshot:next,changed:true};
 }
-export function recommendedRoute(snapshot,target){const project=target==='ai'?'assistant':'archive',ids=ancestors(snapshot.nodes,project);return snapshot.nodes.filter(n=>ids.has(n.id)&&n.kind!=='project'&&n.level<3).sort((a,b)=>a.layer-b.layer||a.x-b.x)}
+export function recommendedRoute(snapshot,target){const project=snapshot.nodes.some(n=>n.kind==='project'&&n.id===target)?target:target==='ai'?'assistant':target==='backend'?'archive':'',ids=project?ancestors(snapshot.nodes,project):new Set(snapshot.nodes.map(n=>n.id));return snapshot.nodes.filter(n=>ids.has(n.id)&&n.kind!=='project'&&n.level<3).sort((a,b)=>a.layer-b.layer||a.x-b.x)}
 export function validateSnapshot(snapshot){validateGraph(snapshot.nodes);const sources=new Set(snapshot.sources.map(s=>s.id));for(const n of snapshot.nodes)for(const id of n.refs)if(!sources.has(id))throw Error('来源引用不存在');return true}

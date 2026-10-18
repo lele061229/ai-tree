@@ -1,6 +1,9 @@
-# AI Knowledge OS — baseline interaction prototype
+# AI Knowledge OS — private platform + interaction prototype
 
-This is a private, buildless prototype using fictional content. It demonstrates a knowledge graph presented as an ability tree; versioned import and incremental merge; source tracing; node learning spaces; and separate ability evidence and project stage semantics. It does **not** connect to chat histories, external accounts, AI providers, databases or real project repositories. Import results and mentor responses are explicitly labelled as preset demonstrations.
+
+The static Sites URL remains a private interaction demo. A self-hosted FastAPI + MySQL personal-platform backend is now included; see [SELF_HOSTING.md](docs/SELF_HOSTING.md) and [API.md](docs/API.md). It supports authenticated server persistence, authorized text import, real configurable model calls, review and immutable route history. The server edition starts empty; no fictional records are promoted to user data.
+
+The static demo is a private, buildless prototype using fictional content. It demonstrates a knowledge graph presented as an ability tree; versioned import and incremental merge; source tracing; node learning spaces; and separate ability evidence and project stage semantics. It does **not** connect to chat histories, external accounts, AI providers, databases or real project repositories. Import results and mentor responses are explicitly labelled as preset demonstrations.
 
 ## Run and verify
 
