@@ -1,47 +1,58 @@
-# AI Knowledge OS — private platform + interaction prototype
+# AI Knowledge OS · 个人平台 V1 基础版
 
+此仓库同时包含两种运行方式：
 
-The static Sites URL remains a private interaction demo. A self-hosted FastAPI + MySQL personal-platform backend is now included; see [SELF_HOSTING.md](docs/SELF_HOSTING.md) and [API.md](docs/API.md). It supports authenticated server persistence, authorized text import, real configurable model calls, review and immutable route history. The server edition starts empty; no fictional records are promoted to user data.
+- **静态交互演示**：当前私密 Sites 地址，使用内置虚构资料与浏览器进度，盘点和导师回答是预置演示。
+- **自部署个人平台**：FastAPI + MySQL，独立账号登录、服务器保存原文与版本、真实模型接口、待审变更、知识树和学习进度。新账号从空白知识空间开始。
 
-The static demo is a private, buildless prototype using fictional content. It demonstrates a knowledge graph presented as an ability tree; versioned import and incremental merge; source tracing; node learning spaces; and separate ability evidence and project stage semantics. It does **not** connect to chat histories, external accounts, AI providers, databases or real project repositories. Import results and mentor responses are explicitly labelled as preset demonstrations.
+## 先读什么
 
-## Run and verify
+- [阿里云自部署与备份恢复](docs/SELF_HOSTING.md)
+- [接口说明](docs/API.md)
+- [验证结果与未验证项目](docs/VALIDATION.md)
+- [第三方依赖与许可证元数据](docs/DEPENDENCIES.md)
 
-Requires Node.js 18+ for tests. There are no third-party runtime dependencies or build steps.
+真实版尚需目标服务器环境与模型配置才能完成部署验收。此仓库不是已上线生产系统的证明。
+
+## 架构与代码
+
+采用模块化单体。前端、应用路由、领域规则、模型适配与数据库分别维护。
+
+| 路径 | 职责 |
+|---|---|
+| dist/app.js | 页面状态与操作编排 |
+| dist/modules/graph.js | 科技树布局、连线、筛选与缩放 |
+| dist/modules/panels.js / navigation.js | 学习空间、清单与项目入口 |
+| dist/modules/server-api.js | 真实版唯一 HTTP 客户端入口 |
+| dist/modules/server-controller.js / server-ui.js | 真实资料操作及界面 |
+| dist/modules/domain.js / seed.js | 静态演示的图规则与虚构资料 |
+| backend/routers/ | 登录、知识空间、导入、导师接口 |
+| backend/knowledge.py | 服务端知识对齐、关系校验、版本事务 |
+| backend/ai_adapter.py | 唯一模型调用入口与提取 Prompt |
+| backend/database.py / migrations/ | 数据表与可追踪迁移 |
+| deploy/ | 初始化配置、启动、备份与恢复、交付打包 |
+
+原始资料不被 AI 总结覆盖；每次确认的导入创建新版本；相同批次重复确认不会创建重复版本；过期预览不能覆盖最新路线。任务勾选不会改变能力等级。模型不能自动把讨论推进成掌握、测试通过或已上线。
+
+## 测试
+
+需要 Python 3.12 与 Node.js 18+；前端无第三方运行时依赖。后端依赖精确锁定。
 
 ```sh
+python3 -m venv .venv
+.venv/bin/pip install -r backend/requirements.lock
+.venv/bin/python -m pytest backend/tests -q
 npm test
 ```
 
-Serve `dist/` with any static HTTP server. For example, with Python 3 available, run `python3 -m http.server 8080 --directory dist`, then open `http://localhost:8080`. ES modules require HTTP rather than opening index.html directly. In the managed Sites environment use the platform preview and deployment workflow. `.openai/hosting.json` identifies the existing private Site.
+自动测试使用临时 SQLite、真实迁移与测试专用模型适配器，不访问私人资料或计费接口。MySQL 容器、真实模型、生产 HTTPS 与备份恢复需在目标服务器独立验收。
 
-## Modules
+静态演示可用任意静态 HTTP 服务托管 dist/。生产部署读取 docs/SELF_HOSTING.md，不要用临时开发服务器替代登录与 HTTPS 配置。
 
-- `dist/app.js`: UI actions, view state and orchestration.
-- `dist/modules/graph.js`: SVG relationships, DOM nodes, pan/zoom and filters.
-- `dist/modules/panels.js`: learning space, source entry points, review, history, goals.
-- `dist/modules/domain.js`: pure graph validation, prerequisite traversal, immutable incremental merge and recommendation rules.
-- `dist/modules/storage.js`: versioned browser-local persistence. The previous prototype's storage key is preserved and is not interpreted as proof of mastery.
-- `dist/modules/navigation.js`: expandable sidebar, version-aware task counts and queue, recent nodes and project evidence index.
-- `dist/modules/seed.js`: fictional source material and two deterministic example batches.
-- `dist/modules/base-data.js`: authored example textbook content; not an AI engine.
-- `dist/modules/ui.js`: text escaping, icons and basic UI primitives.
+## 完整软件资产
 
-## Data and boundaries
+保留 Git 仓库与历史、源码、依赖锁、数据库迁移、AI Prompt 和适配器、接口说明、运行文档、测试与验证记录，以及备份恢复脚本。交付包另附 Git bundle，可恢复完整提交历史。代码不能依赖作者机器上的私有路径或真实密钥。
 
-Each snapshot contains nodes, source documents, applied batch IDs and conflict records. Applying an example batch creates a new snapshot; old snapshots remain immutable. Replaying the same batch creates no duplicates or new version. Existing source IDs cannot be overwritten. Knowledge status is one of five evidence levels; project status is one of six stages. A conflict acknowledgement is required for the sync example, and the merge does not advance the project's stage. Task checkboxes and quiz responses are stored separately, scoped to a version, and never change the evidence level. History views are read-only.
+当前 V1 支持授权文本 / Markdown 手动导入；直接读取 ChatGPT 历史、真正的 Skill 同步插件、PDF / Word 解析、完整节点编辑与独立能力验证、多用户注册与计费均未实现。
 
-Progress is stored only in the current browser, not synchronized between devices. Clearing browser site data removes local progress; this is not a production backup or restore system. Source and deployment history remain in the Site repository. No model-generated output is presented as verified implementation.
-
-## Manual acceptance
-
-1. Open a node and inspect all five learning tabs. Follow a source and return.
-2. Load the built-in history example, review the three new nodes, apply and see v2.
-3. Load the Skill example. Confirm apply is disabled until its conflict is acknowledged. Apply and see v3 with 22 nodes; the customer project remains `计划`.
-4. Open route history. v1 contains 18 nodes and remains read-only; return to latest.
-5. Repeat a batch and verify no duplicate version. Reload and check versions persist.
-6. Verify project and ability filters, search empty state, goal-dependent paths, pan/zoom, and mobile panels.
-
-This repository is a prototype asset, not the complete production software handoff described in the product baseline. A production modular monolith still needs an authorized import service, AI adapter, durable database schema/migrations, server authorization, evaluation pipeline, API documentation and tested backup/restore.
-
-License: proprietary / UNLICENSED. No third-party application dependencies are included.
+项目为私人软件，UNLICENSED。第三方包各自的许可声明保持独立；不在仓库中附带第三方包二进制或任何密钥。
