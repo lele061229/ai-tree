@@ -4,9 +4,10 @@ import {BATCHES} from './modules/seed.js';
 import {loadStore,persist} from './modules/storage.js';
 import {createGraph} from './modules/graph.js';
 import {renderNode,renderSync,renderHistory,renderGoal,taskKey} from './modules/panels.js';
+import {updateNavigation,renderTaskQueue,renderProjectIndex} from './modules/navigation.js';
 
 const store=loadStore();
-const ui={panel:null,selected:null,tab:'book',query:'',project:'all',level:'all',highlight:false,version:null,batch:'history',syncStep:'choose',ackConflict:false,mentor:{}};
+const ui={panel:null,selected:null,tab:'book',query:'',project:'all',level:'all',highlight:false,version:null,batch:'history',syncStep:'choose',ackConflict:false,mentor:{},taskScope:'pending'};
 const snapshot=()=>ui.version===null?store.snapshots.at(-1):store.snapshots.find(v=>v.version===ui.version);
 const graph=createGraph(selectNode);
 let sourceReturnFocus=null;
@@ -23,9 +24,14 @@ function render(){
  if(ui.panel==='sync')p.innerHTML=renderSync(s,ui);
  if(ui.panel==='history')p.innerHTML=renderHistory(store,ui);
  if(ui.panel==='goal')p.innerHTML=renderGoal(s,store);
+ if(ui.panel==='tasks')p.innerHTML=renderTaskQueue(s,ui,store);
+ if(ui.panel==='projects')p.innerHTML=renderProjectIndex(s);
+ updateNavigation(s,ui,store);
 }
-function selectNode(id,tab='book'){if(!snapshot().nodes.some(n=>n.id===id))return;ui.selected=id;ui.panel='node';ui.tab=tab;render();graph.center(snapshot().nodes.find(n=>n.id===id))}
-function openPanel(panel){ui.panel=panel;if(panel==='sync'){if(ui.version!==null){toast('请返回当前路线后再同步资料。');ui.panel='history'}ui.syncStep='choose';ui.ackConflict=false}render()}
+function selectNode(id,tab='book'){if(!snapshot().nodes.some(n=>n.id===id))return;ui.selected=id;ui.panel='node';ui.tab=tab;store.recents=[id,...(store.recents||['cicd','api']).filter(v=>v!==id)].slice(0,3);save();closeNavigation();render();graph.center(snapshot().nodes.find(n=>n.id===id))}
+function openPanel(panel){closeNavigation();ui.panel=panel;if(panel==='sync'){if(ui.version!==null){toast('请返回当前路线后再同步资料。');ui.panel='history'}ui.syncStep='choose';ui.ackConflict=false}render()}
+function closeNavigation(){document.body.classList.remove('mobile-navigation-open');$('.sidebar-backdrop').hidden=true;$('.mobile-menu').setAttribute('aria-expanded','false')}
+function toggleNavigation(){if(innerWidth<=760){const open=!document.body.classList.contains('mobile-navigation-open');document.body.classList.toggle('mobile-navigation-open',open);$('.sidebar-backdrop').hidden=!open;$('.mobile-menu').setAttribute('aria-expanded',String(open));if(open)$('.collapse-button').focus();return}store.navigationCollapsed=!store.navigationCollapsed;save();updateNavigation(snapshot(),ui,store);requestAnimationFrame(()=>graph.fit())}
 function showSource(source){if(!source)return;sourceReturnFocus=document.activeElement;$('#source-title').textContent=source.title;$('#source-meta').textContent=`${source.type} · ${source.date} · ${source.locator} · 虚构示例`;$('#source-text').textContent=source.text;$('#source-modal').hidden=false;$('[data-action="close-source"]').focus()}
 function closeSource(){$('#source-modal').hidden=true;if(sourceReturnFocus?.isConnected)sourceReturnFocus.focus()}
 function latest(){ui.version=null;ui.selected=null;ui.highlight=false;ui.panel=null;clearFilters();render();graph.fit()}
@@ -35,15 +41,17 @@ function merge(){if(ui.version!==null)return;const previous=snapshot(),batch=BAT
 document.addEventListener('click',e=>{
  const source=e.target.closest('[data-source]');if(source){showSource(snapshot().sources.find(s=>s.id===source.dataset.source));return}
  const batchSource=e.target.closest('[data-batch-source]');if(batchSource){showSource(BATCHES[ui.batch].sources.find(s=>s.id===batchSource.dataset.batchSource));return}
- const node=e.target.closest('#side-panel [data-node]');if(node){selectNode(node.dataset.node,node.dataset.nodeTab||'book');return}
+ const node=e.target.closest('#side-panel [data-node], #sidebar [data-node]');if(node){selectNode(node.dataset.node,node.dataset.nodeTab||'book');return}
+ const scope=e.target.closest('[data-task-scope]');if(scope){ui.taskScope=scope.dataset.taskScope;render();return}
  const tab=e.target.closest('[data-tab]');if(tab){ui.tab=tab.dataset.tab;render();$('#tab-'+ui.tab).focus();return}
  const batch=e.target.closest('[data-batch]');if(batch){ui.batch=batch.dataset.batch;ui.syncStep='choose';ui.ackConflict=false;render();return}
  const version=e.target.closest('[data-version]');if(version){const v=Number(version.dataset.version);ui.version=v===store.snapshots.at(-1).version?null:v;ui.selected=null;ui.highlight=false;clearFilters();render();graph.fit();return}
  const mentor=e.target.closest('[data-mentor]');if(mentor){ui.mentor[ui.selected]=mentor.dataset.mentor;render();return}
  const answer=e.target.closest('[data-answer]');if(answer&&ui.version===null){store.answers[taskKey(snapshot().version,ui.selected,'quiz')]=Number(answer.dataset.answer);save();render();return}
  const action=e.target.closest('[data-action]')?.dataset.action;if(!action)return;
- if(['sync','history','goal'].includes(action))openPanel(action);
- if(action==='home'){ui.panel=null;ui.selected=null;ui.highlight=false;clearFilters();render();graph.fit()}
+ if(['sync','history','goal','tasks','projects'].includes(action))openPanel(action);
+ if(action==='home'){closeNavigation();ui.panel=null;ui.selected=null;ui.highlight=false;clearFilters();render();graph.fit()}
+ if(action==='toggle-navigation')toggleNavigation();if(action==='close-navigation')closeNavigation();
  if(action==='close-panel'){ui.panel=null;render();graph.fit()}
  if(action==='close-source')closeSource();
  if(action==='highlight'){ui.highlight=!ui.highlight;clearFilters();render();graph.fit();if(innerWidth<760){ui.panel=null;render()}toast(ui.highlight?'已高亮当前节点的前置路径。':'已恢复全部依赖关系。')}
@@ -58,10 +66,10 @@ document.addEventListener('change',e=>{
  if(e.target.id==='level-filter'){ui.level=e.target.value;ui.highlight=false;render()}
  if(e.target.id==='goal-select'){store.target=e.target.value;save();render()}
  if(e.target.id==='conflict-ack'){ui.ackConflict=e.target.checked;const apply=$('[data-action="apply-batch"]');if(apply)apply.disabled=!ui.ackConflict}
- if(e.target.matches('[data-task]')&&ui.version===null){store.tasks[taskKey(snapshot().version,ui.selected,e.target.dataset.task)]=e.target.checked;save();toast('练习进度已记录；能力等级保持原有证据判断。')}
+ if(e.target.matches('[data-task]')&&ui.version===null){const id=e.target.dataset.taskNode||ui.selected;store.tasks[taskKey(snapshot().version,id,e.target.dataset.task)]=e.target.checked;save();if(ui.panel==='tasks')render();else updateNavigation(snapshot(),ui,store);toast('练习进度已记录；能力等级保持原有证据判断。')}
 });
 $('#search').addEventListener('input',e=>{ui.query=e.target.value.trim().toLowerCase();ui.highlight=false;render()});
-$('.mark').addEventListener('click',e=>{e.preventDefault();$('[data-action="home"]').click()});
+$('.brand-home').addEventListener('click',e=>{e.preventDefault();$('[data-action="home"]').click()});
 $('#source-modal').addEventListener('click',e=>{if(e.target.id==='source-modal')closeSource()});
-document.addEventListener('keydown',e=>{if(!$('#source-modal').hidden){if(e.key==='Escape')closeSource();if(e.key==='Tab'){e.preventDefault();$('[data-action="close-source"]').focus()}}else if(e.key==='Escape'&&ui.panel){ui.panel=null;render();graph.fit()}});
+document.addEventListener('keydown',e=>{if(!$('#source-modal').hidden){if(e.key==='Escape')closeSource();if(e.key==='Tab'){e.preventDefault();$('[data-action="close-source"]').focus()}}else if(e.key==='Escape'&&document.body.classList.contains('mobile-navigation-open')){closeNavigation();$('.mobile-menu').focus()}else if(e.key==='Escape'&&ui.panel){ui.panel=null;render();graph.fit()}});
 hydrateIcons();validateSnapshot(snapshot());render();requestAnimationFrame(()=>graph.fit());

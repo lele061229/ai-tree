@@ -19,6 +19,7 @@ Serve `dist/` with any static HTTP server. For example, with Python 3 available,
 - `dist/modules/panels.js`: learning space, source entry points, review, history, goals.
 - `dist/modules/domain.js`: pure graph validation, prerequisite traversal, immutable incremental merge and recommendation rules.
 - `dist/modules/storage.js`: versioned browser-local persistence. The previous prototype's storage key is preserved and is not interpreted as proof of mastery.
+- `dist/modules/navigation.js`: expandable sidebar, version-aware task counts and queue, recent nodes and project evidence index.
 - `dist/modules/seed.js`: fictional source material and two deterministic example batches.
 - `dist/modules/base-data.js`: authored example textbook content; not an AI engine.
 - `dist/modules/ui.js`: text escaping, icons and basic UI primitives.

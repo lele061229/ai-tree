@@ -1,7 +1,6 @@
 import {esc,icon,panelHeader,sourceButton} from './ui.js';
-import {LEVELS,STAGES,ancestors,recommendedRoute} from './domain.js';
+import {LEVELS,STAGES,ancestors,recommendedRoute,taskKey} from './domain.js';
 import {BATCHES} from './seed.js';
-const taskKey=(v,id,i)=>`v${v}:${id}:${i}`;
 export {taskKey};
 function sourceList(n,s){return n.refs.map(id=>{const src=s.sources.find(v=>v.id===id);return`<article class="source-card"><span class="tag">${esc(src.type)}</span><h4>${esc(src.title)}</h4><p>${esc(src.date)} · ${esc(src.locator)}</p>${sourceButton(id)}</article>`}).join('')}
 const tabLabels={book:'动态教材',profile:'学习档案',practice:'项目实践',mentor:'AI 导师',exercise:'练习验证'};

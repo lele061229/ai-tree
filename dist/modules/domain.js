@@ -1,5 +1,6 @@
 export const LEVELS=['未接触','讨论过','有实践记录','实践已验证','独立掌握'];
 export const STAGES=['讨论','计划','执行','待验证','已验证','已上线'];
+export const taskKey=(version,id,index)=>`v${version}:${id}:${index}`;
 export const clone=value=>JSON.parse(JSON.stringify(value));
 export function ancestors(nodes,id){const byId=new Map(nodes.map(n=>[n.id,n])),found=new Set();function walk(key){if(found.has(key)||!byId.has(key))return;found.add(key);byId.get(key).prereqs.forEach(walk)}walk(id);return found}
 export function validateGraph(nodes){const byId=new Map(nodes.map(n=>[n.id,n]));if(byId.size!==nodes.length)throw Error('节点标识重复');const seen=new Set(),active=new Set();function visit(n){if(active.has(n.id))throw Error('前置关系存在循环');if(seen.has(n.id))return;if(!Number.isInteger(n.level)||n.level<0||n.level>4)throw Error('能力状态无效');if(n.kind==='project'&&!STAGES.includes(n.stage))throw Error('项目状态无效');active.add(n.id);for(const id of n.prereqs){if(!byId.has(id))throw Error('前置节点不存在');visit(byId.get(id))}active.delete(n.id);seen.add(n.id)}nodes.forEach(visit);return true}
