@@ -3,7 +3,10 @@ export async function request(path,options={}){
  const response=await fetch('/api'+path,{credentials:'same-origin',cache:'no-store',...options,headers:{'Content-Type':'application/json',...(platform.csrf?{'X-CSRF-Token':platform.csrf}:{}),...options.headers}});
  let body;try{body=await response.json()}catch{throw Error('服务器未返回有效响应。')}
  if(response.status===401){location.assign('/login');throw Error('登录已过期，请重新登录。')}
- if(!response.ok)throw Error(typeof body.detail==='string'?body.detail:'请求未通过校验，请核对输入。');
+ if(!response.ok){
+  const detail=body.detail, text=typeof detail==='string'?detail:(detail&&detail.message)||'请求未通过校验，请核对输入。';
+  const error=Error(text);error.code=detail&&detail.code;error.info=detail;throw error;
+ }
  return body;
 }
 export async function bootServer(){

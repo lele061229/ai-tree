@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI Tree · 学习卡片</title>
+<link rel="stylesheet" href="./card.css">
+</head>
+<body>
+<div class="card" id="card" data-conn="loading" data-auth="unknown">
+  <header class="head" id="drag-region">
+    <span class="dot" id="dot" aria-hidden="true"></span>
+    <span class="brand">AI TREE</span>
+    <span class="spacer"></span>
+    <button class="icon-button" data-act="refresh" title="立即刷新" aria-label="立即刷新">↻</button>
+    <button class="icon-button" data-act="tree" title="打开能力树" aria-label="打开能力树">↗</button>
+    <button class="icon-button" data-act="collapse" title="收起为胶囊" aria-label="收起为胶囊">⌃</button>
+    <button class="icon-button" data-act="hide" title="隐藏卡片" aria-label="隐藏卡片">✕</button>
+  </header>
+
+  <main class="body">
+    <section class="block">
+      <span class="overline">当前目标</span>
+      <p class="goal" id="goal">正在读取…</p>
+    </section>
+
+    <section class="block">
+      <span class="overline" id="next-label">建议学习</span>
+      <p class="next" id="next">—</p>
+    </section>
+
+    <footer class="foot">
+      <span class="sync" id="sync">同步：读取中</span>
+      <span class="stamp" id="stamp"></span>
+    </footer>
+  </main>
+
+  <div class="collapsed" id="collapsed">
+    <span class="collapsed-goal" id="collapsed-goal">AI Tree</span>
+    <span class="collapsed-state" id="collapsed-state"></span>
+    <button class="icon-button" data-act="expand" title="展开卡片" aria-label="展开卡片">⌄</button>
+  </div>
+
+  <div class="banner" id="banner" hidden>
+    <span id="banner-text"></span>
+    <button class="banner-action" data-act="tree" id="banner-action">打开窗口</button>
+  </div>
+</div>
+<script type="module" src="./card.js"></script>
+</body>
+</html>

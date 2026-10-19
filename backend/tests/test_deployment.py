@@ -1,4 +1,5 @@
 from pathlib import Path
+import os
 import pytest
 from deploy.init_secrets import initialize
 from backend.config import Settings
@@ -7,8 +8,14 @@ def test_initialization_keeps_credentials_local_and_refuses_overwrite(tmp_path):
     initialize(tmp_path,'https://knowledge.example.com')
     files=list((tmp_path/'.secrets').iterdir())
     assert len(files)==4
-    assert (tmp_path/'.secrets').stat().st_mode & 0o777 == 0o700
-    assert (tmp_path/'.env').stat().st_mode & 0o777 == 0o600
+    if os.name != 'nt':
+        # POSIX：mode 位就是隔离本身。
+        assert (tmp_path/'.secrets').stat().st_mode & 0o777 == 0o700
+        assert (tmp_path/'.env').stat().st_mode & 0o777 == 0o600
+    else:
+        # Windows 没有 POSIX mode 位，chmod 不构成隔离；权限必须用 ACL 验证。
+        # 这里只断言文件确实落盘，权限由 Skill 的 check 命令（icacls）负责。
+        assert (tmp_path/'.secrets'/'admin_password').is_file()
     before=(tmp_path/'.secrets/admin_password').read_text()
     assert len(before)>=32
     with pytest.raises(FileExistsError):initialize(tmp_path,'https://other.example.com')

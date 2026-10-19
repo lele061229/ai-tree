@@ -33,10 +33,45 @@ def latest(db, user_id):
     w = ensure_workspace(db, user_id)
     return db.get(Version, (user_id, w.current_version)).snapshot
 
-def source_payload(source):
-    return {'id': source.id, 'title': source.title, 'type': '导入资料',
+def source_payload(source, channel='import', summary_only=False, mixed=False):
+    """Source records are immutable. `summary_only` states that no original text was supplied."""
+    if summary_only:
+        locator = 'AI 摘要（非原文，按授权范围整理）'
+    elif mixed:
+        locator = '用户授权内容（原文 + 智能体摘要，逐段标注）'
+    else:
+        locator = '用户授权导入的原始全文'
+    return {'id': source.id, 'title': source.title,
+            'type': '智能体同步' if channel == 'skill' else '导入资料',
             'date': datetime.fromtimestamp(source.created_at, timezone.utc).strftime('%Y-%m-%d'),
-            'locator': '用户授权导入的原始全文', 'text': source.body, 'fictional': False}
+            'locator': locator,
+            'text': source.body, 'fictional': False, 'derived': summary_only,
+            'channel': 'skill' if channel == 'skill' else 'source'}
+
+def merge_details(node, details, source):
+    """Attach agent-supplied context. Never touches level, stage or verification state."""
+    if not details:
+        return
+    for text in details.get('understanding') or []:
+        item = {'text': text, 'source': source.id}
+        if item not in node['notes']:
+            node['notes'].append(item)
+    for question in details.get('openQuestions') or []:
+        bucket = node.setdefault('open', [])
+        item = {'text': question, 'source': source.id}
+        if item not in bucket:
+            bucket.append(item)
+    for text in details.get('recommended') or []:
+        bucket = node.setdefault('recommendedNext', [])
+        item = {'text': text, 'source': source.id}
+        if item not in bucket:
+            bucket.append(item)
+    statement = (details.get('statement') or '').strip()
+    if statement and node['kind'] == 'project':
+        entry = ['用户陈述（未独立验证）', source.title, statement]
+        if entry not in node['evidence']:
+            node['evidence'].append(entry)
+    node['channel'] = 'skill'
 
 def validate_graph(nodes):
     by_id = {n['id']: n for n in nodes}
@@ -58,9 +93,16 @@ def validate_graph(nodes):
     for key in by_id:
         visit(key)
 
-def build_plan(snapshot, source, extraction):
+def build_plan(snapshot, source, extraction, details=None, channel='import',
+               summary_only=False, mixed=False):
+    """One alignment pass for every channel (model analysis and agent sync alike).
+
+    `details` is keyed by normalized title and carries extra context from a sync package.
+    It can add notes, open questions, recommendations and a user statement — never mastery.
+    """
     next_snapshot = copy.deepcopy(snapshot)
     nodes = next_snapshot['nodes']
+    details = details or {}
     names = {}
     for node in nodes:
         for name in [node['title'], *node.get('aliases', [])]:
@@ -70,6 +112,7 @@ def build_plan(snapshot, source, extraction):
         candidates = {names[normalize(n)] for n in [item.title, *item.aliases] if normalize(n) in names}
         if len(candidates) > 1:
             raise ValueError('知识别名与多个已有节点冲突，请先人工核对')
+        extra = details.get(normalize(item.title))
         if candidates:
             node = next(n for n in nodes if n['id'] == next(iter(candidates)))
             if (node['kind'] == 'project') != (item.kind == 'project'):
@@ -77,6 +120,7 @@ def build_plan(snapshot, source, extraction):
             node['notes'].append({'text': item.summary, 'source': source.id})
             if source.id not in node['refs']:
                 node['refs'].append(source.id)
+            merge_details(node, extra, source)
             changes.append({'type': '补充', 'title': node['title'], 'detail': item.summary, 'prerequisites': item.prerequisites})
         else:
             node = {'id': identifier('node_'), 'title': item.title, 'aliases': item.aliases,
@@ -90,6 +134,7 @@ def build_plan(snapshot, source, extraction):
                     'evidence': [['原始资料中的陈述', source.title, '保留来源，尚未独立验证实现或掌握。']]}
             if item.kind == 'project':
                 node['stage'] = '讨论'
+            merge_details(node, extra, source)
             nodes.append(node)
             created.add(node['id'])
             changes.append({'type': '新增', 'title': node['title'], 'detail': item.summary, 'prerequisites': item.prerequisites})
@@ -107,7 +152,7 @@ def build_plan(snapshot, source, extraction):
         raise ValueError('个人 V1 最多支持 200 个节点，请先整理现有知识')
     validate_graph(nodes)
     if source.id not in [s['id'] for s in next_snapshot['sources']]:
-        next_snapshot['sources'].append(source_payload(source))
+        next_snapshot['sources'].append(source_payload(source, channel, summary_only, mixed))
     return {'snapshot': next_snapshot, 'changes': changes,
             'notice': '仅新增讨论记录和关联。能力等级与已有项目阶段均不自动提升。'}
 

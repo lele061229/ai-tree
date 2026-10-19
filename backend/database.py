@@ -76,6 +76,39 @@ class ImportBatch(Base):
     error: Mapped[str | None] = mapped_column(String(300), nullable=True)
     created_at: Mapped[int] = mapped_column(Integer, default=lambda: int(time.time()))
 
+class SyncToken(Base):
+    """Scoped, revocable credential for one user's agent-side submission channel.
+
+    Only the SHA-256 digest of the bearer token is stored. Scope is fixed to submission
+    intake: a token can never read the workspace, apply a plan, or act as a session.
+    """
+    __tablename__ = 'sync_tokens'
+    id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    user_id: Mapped[str] = mapped_column(String(40), index=True)
+    label: Mapped[str] = mapped_column(String(80))
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    prefix: Mapped[str] = mapped_column(String(20))
+    created_at: Mapped[int] = mapped_column(Integer, default=lambda: int(time.time()))
+    last_used_at: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    expires_at: Mapped[int] = mapped_column(Integer)
+    revoked_at: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+class SyncSubmission(Base):
+    """Idempotency and audit record for one agent-submitted learning package."""
+    __tablename__ = 'sync_submissions'
+    __table_args__ = (UniqueConstraint('user_id', 'submission_id', name='uq_sync_user_submission'),)
+    id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    user_id: Mapped[str] = mapped_column(String(40), index=True)
+    submission_id: Mapped[str] = mapped_column(String(80))
+    digest: Mapped[str] = mapped_column(String(64))
+    batch_id: Mapped[str] = mapped_column(String(40))
+    format_version: Mapped[int] = mapped_column(Integer)
+    status: Mapped[str] = mapped_column(String(20))
+    error: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    attempts: Mapped[int] = mapped_column(Integer, default=1)
+    created_at: Mapped[int] = mapped_column(Integer, default=lambda: int(time.time()))
+    updated_at: Mapped[int] = mapped_column(Integer, default=lambda: int(time.time()))
+
 class Progress(Base):
     __tablename__ = 'learning_progress'
     user_id: Mapped[str] = mapped_column(String(40), primary_key=True)

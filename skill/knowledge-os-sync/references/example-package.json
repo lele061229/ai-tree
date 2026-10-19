@@ -1,0 +1,64 @@
+{
+ "format": "ko.learning-update",
+ "formatVersion": 1,
+ "submissionId": "sub_example_fictional_01",
+ "sourceType": "agent_skill",
+ "scope": "示例：一段完全虚构的练习记录，仅用于演示协议字段，不代表任何真实用户经历",
+ "agent": {"name": "workbuddy", "skill": "knowledge-os-sync", "skillVersion": "1.0.0"},
+ "createdAt": "2026-10-19T00:00:00Z",
+ "fragments": [
+  {
+   "title": "虚构练习笔记（示例）",
+   "kind": "user_original",
+   "text": "# 虚构练习笔记\n\n这是示例文本，不是真实学习记录。\n\n我在一个虚构课程里练习了依赖注入，并留下两个没想清楚的问题。"
+  }
+ ],
+ "items": [
+  {
+   "key": "k1",
+   "title": "依赖注入",
+   "aliases": ["DI"],
+   "kind": "knowledge",
+   "layer": 2,
+   "summary": "把依赖从外部传入，让实现可以替换，也便于测试。",
+   "concepts": [["控制反转", "对象不再自己创建依赖"], ["构造注入", "在构造函数里声明依赖"]],
+   "tasks": ["把一处硬编码的连接改成注入", "用替身写一个测试"],
+   "mistakes": [["把全局单例当注入", "全局状态让替换失效"]],
+   "prerequisites": [],
+   "understanding": ["依赖注入的收益主要在可替换性，不只是少写几行代码。"],
+   "openQuestions": ["构造函数注入和 setter 注入该怎么选？"],
+   "recommended": ["读一遍框架的依赖解析顺序"]
+  },
+  {
+   "key": "k2",
+   "title": "事务边界",
+   "aliases": [],
+   "kind": "knowledge",
+   "layer": 3,
+   "summary": "一次业务操作放在同一个事务里，避免部分成功。",
+   "concepts": [["原子性", "要么全部成功，要么全部回滚"]],
+   "tasks": ["制造一次中途失败，观察是否整体回滚"],
+   "mistakes": [],
+   "prerequisites": ["k1"],
+   "understanding": [],
+   "openQuestions": ["跨仓储的操作应该在哪一层提交？"],
+   "recommended": []
+  },
+  {
+   "key": "k3",
+   "title": "虚构练手项目",
+   "aliases": [],
+   "kind": "project",
+   "layer": 4,
+   "summary": "一个完全虚构的练手项目，用来演示项目节点与用户陈述。",
+   "concepts": [["目标", "跑通一个最小服务"]],
+   "tasks": ["写下第一条失败用例"],
+   "mistakes": [],
+   "prerequisites": ["k2"],
+   "understanding": [],
+   "openQuestions": [],
+   "recommended": [],
+   "project": {"title": "虚构练手项目", "statement": "示例陈述：这个项目目前只在本机跑通过，还没有部署。"}
+  }
+ ]
+}

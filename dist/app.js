@@ -10,7 +10,8 @@ import {renderNode,renderSync,renderHistory,renderGoal,taskKey} from './modules/
 import {updateNavigation,renderTaskQueue,renderProjectIndex} from './modules/navigation.js';
 
 const store=await loadStore().catch(e=>{document.body.innerHTML='<section class="login-card"><h1>暂时无法打开知识空间</h1><p id="startup-error"></p><a href="/">重新加载</a></section>';document.querySelector('#startup-error').textContent=e.message;throw e});
-const ui={panel:null,selected:null,tab:'book',query:'',project:'all',level:'all',highlight:false,version:null,batch:'history',syncStep:'choose',ackConflict:false,mentor:{},taskScope:'pending',mode:store.mode,serverBusy:false,serverSources:[],sourceTitle:'',sourceBody:''};
+const ui={panel:null,selected:null,tab:'book',query:'',project:'all',level:'all',highlight:false,version:null,batch:'history',syncStep:'choose',ackConflict:false,mentor:{},taskScope:'pending',mode:store.mode,serverBusy:false,serverSources:[],sourceTitle:'',sourceBody:'',syncTab:'skill',newToken:null};
+let syncApi=null;
 const snapshot=()=>ui.version===null?store.snapshots.at(-1):store.snapshots.find(v=>v.version===ui.version);
 const graph=createGraph(selectNode);
 let sourceReturnFocus=null;
@@ -32,7 +33,7 @@ function render(){
  updateNavigation(s,ui,store);
 }
 function selectNode(id,tab='book'){if(!snapshot().nodes.some(n=>n.id===id))return;ui.selected=id;ui.panel='node';ui.tab=tab;store.recents=[id,...(store.recents||['cicd','api']).filter(v=>v!==id)].slice(0,3);save();closeNavigation();render();graph.center(snapshot().nodes.find(n=>n.id===id))}
-function openPanel(panel){closeNavigation();ui.panel=panel;if(panel==='sync'){if(ui.version!==null){toast('请返回当前路线后再同步资料。');ui.panel='history'}ui.syncStep='choose';ui.ackConflict=false}render()}
+function openPanel(panel){closeNavigation();ui.panel=panel;if(panel==='sync'){if(ui.version!==null){toast('请返回当前路线后再同步资料。');ui.panel='history'}ui.syncStep='choose';ui.ackConflict=false;ui.serverError=''}render();if(panel==='sync'&&syncApi)syncApi.loadSync()}
 function closeNavigation(){document.body.classList.remove('mobile-navigation-open');$('.sidebar-backdrop').hidden=true;$('.mobile-menu').setAttribute('aria-expanded','false')}
 function toggleNavigation(){if(innerWidth<=760){const open=!document.body.classList.contains('mobile-navigation-open');document.body.classList.toggle('mobile-navigation-open',open);$('.sidebar-backdrop').hidden=!open;$('.mobile-menu').setAttribute('aria-expanded',String(open));if(open)$('.collapse-button').focus();return}store.navigationCollapsed=!store.navigationCollapsed;save();updateNavigation(snapshot(),ui,store);requestAnimationFrame(()=>graph.fit())}
 function showSource(source){if(!source)return;sourceReturnFocus=document.activeElement;$('#source-title').textContent=source.title;$('#source-meta').textContent=`${source.type} · ${source.date} · ${source.locator} · ${source.fictional?'虚构示例':'原始资料'}`;$('#source-text').textContent=source.text;$('.source-note').textContent=(source.fictional?'虚构原始资料':'用户授权导入的原始资料')+' · 路线更新不会覆盖这段内容。';$('#source-modal').hidden=false;$('[data-action="close-source"]').focus()}
@@ -48,10 +49,12 @@ document.addEventListener('click',e=>{
  const scope=e.target.closest('[data-task-scope]');if(scope){ui.taskScope=scope.dataset.taskScope;render();return}
  const tab=e.target.closest('[data-tab]');if(tab){ui.tab=tab.dataset.tab;render();$('#tab-'+ui.tab).focus();return}
  const batch=e.target.closest('[data-batch]');if(batch){ui.batch=batch.dataset.batch;ui.syncStep='choose';ui.ackConflict=false;render();return}
+ const syncTab=e.target.closest('[data-sync-tab]');if(syncTab){ui.syncTab=syncTab.dataset.syncTab;ui.serverError='';render();return}
  const version=e.target.closest('[data-version]');if(version){const v=Number(version.dataset.version);ui.version=v===store.snapshots.at(-1).version?null:v;ui.selected=null;ui.highlight=false;clearFilters();render();graph.fit();return}
  const mentor=e.target.closest('[data-mentor]');if(mentor){ui.mentor[ui.selected]=mentor.dataset.mentor;render();return}
  const answer=e.target.closest('[data-answer]');if(answer&&ui.version===null){store.answers[taskKey(snapshot().version,ui.selected,'quiz')]=Number(answer.dataset.answer);save();render();return}
  const action=e.target.closest('[data-action]')?.dataset.action;if(!action)return;
+ const syncPath=e.target.closest('[data-sync-path]')?.dataset.syncPath;if(syncPath)ui.syncTab=syncPath;
  if(['sync','history','goal','tasks','projects'].includes(action))openPanel(action);
  if(action==='home'){closeNavigation();ui.panel=null;ui.selected=null;ui.highlight=false;clearFilters();render();graph.fit()}
  if(action==='toggle-navigation')toggleNavigation();if(action==='close-navigation')closeNavigation();
@@ -76,4 +79,4 @@ $('.brand-home').addEventListener('click',e=>{e.preventDefault();$('[data-action
 $('#source-modal').addEventListener('click',e=>{if(e.target.id==='source-modal')closeSource()});
 document.addEventListener('keydown',e=>{if(!$('#source-modal').hidden){if(e.key==='Escape')closeSource();if(e.key==='Tab'){e.preventDefault();$('[data-action="close-source"]').focus()}}else if(e.key==='Escape'&&document.body.classList.contains('mobile-navigation-open')){closeNavigation();$('.mobile-menu').focus()}else if(e.key==='Escape'&&ui.panel){ui.panel=null;render();graph.fit()}});
 hydrateIcons();validateSnapshot(snapshot());render();requestAnimationFrame(()=>graph.fit());
-if(platform.enabled){document.querySelector('.demo-tag').textContent='个人知识空间';document.querySelector('.sidebar-workspace>span').textContent='服务器保存';document.querySelector('.context-meta').textContent='仅登录可见 · 数据保存在服务器';document.querySelector('.prototype-note').textContent='私人平台 · '+(platform.aiReady?'模型接口已配置':'模型接口待配置');document.querySelector('.sidebar-profile .avatar').textContent=platform.user.slice(0,1);document.querySelector('.profile-label').textContent=platform.user+'的知识空间';const logout=document.createElement('button');logout.className='text-button';logout.textContent='退出';logout.addEventListener('click',async()=>{try{await request('/logout',{method:'POST'});location.assign('/login')}catch(e){toast(e.message)}});document.querySelector('.sidebar-profile').append(logout);installServerActions({store,ui,render,save,graph,snapshot})}
+if(platform.enabled){document.querySelector('.demo-tag').textContent='个人知识空间';document.querySelector('.sidebar-workspace>span').textContent='服务器保存';document.querySelector('.context-meta').textContent='仅登录可见 · 数据保存在服务器';document.querySelector('.prototype-note').textContent='私人平台 · 智能体同步可用'+(platform.aiReady?' · 模型接口已配置':' · 模型接口未配置（只影响平台分析与导师）');document.querySelector('#build-entry').hidden=false;document.querySelector('.sidebar-profile .avatar').textContent=platform.user.slice(0,1);document.querySelector('.profile-label').textContent=platform.user+'的知识空间';const logout=document.createElement('button');logout.className='text-button';logout.textContent='退出';logout.addEventListener('click',async()=>{try{await request('/logout',{method:'POST'});location.assign('/login')}catch(e){toast(e.message)}});document.querySelector('.sidebar-profile').append(logout);syncApi=installServerActions({store,ui,render,save,graph,snapshot})}

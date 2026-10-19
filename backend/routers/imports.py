@@ -1,8 +1,9 @@
+import time
 from fastapi import APIRouter, Depends, HTTPException, Request
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from ..ai_adapter import AIUnavailable
-from ..database import ImportBatch, Source, get_db
+from ..database import ImportBatch, Source, SyncSubmission, Version, get_db
 from ..knowledge import build_plan, commit_plan, ensure_workspace, identifier, latest
 from ..schemas import ApplyInput, SourceInput
 from ..security import current_user, digest
@@ -65,8 +66,48 @@ def analyze(source_id: str, request: Request, user=Depends(current_user), db=Dep
 @router.get('/imports')
 def imports(user=Depends(current_user), db=Depends(get_db)):
     batches = db.scalars(select(ImportBatch).where(ImportBatch.user_id == user.id).order_by(ImportBatch.created_at.desc()).limit(30)).all()
-    return [{'id': b.id, 'status': b.status, 'sourceId': b.source_id, 'error': b.error,
-             'changes': b.plan.get('changes', []) if b.plan else [], 'baseVersion': b.base_version} for b in batches]
+    submissions = {row.batch_id: row for row in db.scalars(
+        select(SyncSubmission).where(SyncSubmission.user_id == user.id)).all()}
+    titles = {row.id: row.title for row in db.scalars(
+        select(Source).where(Source.user_id == user.id)).all()}
+    result = []
+    for b in batches:
+        plan = b.plan or {}
+        sub = submissions.get(b.id)
+        result.append({'id': b.id, 'status': b.status, 'sourceId': b.source_id, 'error': b.error,
+                       'changes': plan.get('changes', []), 'baseVersion': b.base_version,
+                       'sourceTitle': titles.get(b.source_id, ''),
+                       'channel': 'skill' if sub else 'source',
+                       'submissionId': sub.submission_id if sub else None,
+                       'attempts': sub.attempts if sub else None,
+                       'sync': plan.get('sync')})
+    return result
+
+@router.get('/summary')
+def summary(user=Depends(current_user), db=Depends(get_db)):
+    """只读汇总，给桌面卡片用。
+
+    `/api/imports` 只返回最近 30 条，不能拿它数待审数量。这里直接用 COUNT，
+    不改动既有接口，因此对老前端完全兼容。
+    """
+    snap = latest(db, user.id)
+    counted = {}
+    for status in ('ready', 'failed', 'applied', 'processing'):
+        counted[status] = db.scalar(select(func.count()).select_from(ImportBatch).where(
+            ImportBatch.user_id == user.id, ImportBatch.status == status)) or 0
+    last = db.scalar(select(SyncSubmission).where(SyncSubmission.user_id == user.id)
+                     .order_by(SyncSubmission.updated_at.desc()).limit(1))
+    updated = db.scalar(select(func.max(Version.created_at)).where(Version.user_id == user.id))
+    return {
+        'version': snap['version'], 'nodes': len(snap['nodes']),
+        'pending': counted['ready'], 'failed': counted['failed'],
+        'applied': counted['applied'], 'processing': counted['processing'],
+        'updatedAt': updated or 0,
+        'lastSubmission': None if not last else {
+            'submissionId': last.submission_id, 'status': last.status,
+            'attempts': last.attempts, 'error': last.error, 'updatedAt': last.updated_at},
+    }
+
 
 @router.post('/imports/{batch_id}/apply')
 def apply(batch_id: str, data: ApplyInput, user=Depends(current_user), db=Depends(get_db)):
@@ -81,6 +122,10 @@ def apply(batch_id: str, data: ApplyInput, user=Depends(current_user), db=Depend
         raise HTTPException(422, '请先审阅并确认变更')
     try:
         number = commit_plan(db, user.id, batch)
+        submission = db.scalar(select(SyncSubmission).where(
+            SyncSubmission.user_id == user.id, SyncSubmission.batch_id == batch.id))
+        if submission:
+            submission.status, submission.updated_at = 'applied', int(time.time())
         db.commit()
     except ValueError as exc:
         db.rollback()

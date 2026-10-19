@@ -7,3 +7,4 @@ __pycache__/
 backups/
 *.sql.gz
 .venv/
+.acltest/

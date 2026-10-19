@@ -5,11 +5,11 @@ from sqlalchemy import text
 from .config import ROOT, Settings
 from .database import make_database
 from .ai_adapter import AIAdapter
-from .routers import auth, workspace, imports, mentor
+from .routers import auth, workspace, imports, mentor, sync
 
 def create_app(settings=None, ai=None):
     settings = settings or Settings.from_env()
-    app = FastAPI(title='AI Knowledge OS', version='0.3.0', docs_url=None, redoc_url=None, openapi_url=None)
+    app = FastAPI(title='AI Knowledge OS', version='0.3.1', docs_url=None, redoc_url=None, openapi_url=None)
     engine, sessions = make_database(settings.database_url)
     app.state.engine, app.state.sessions, app.state.settings = engine, sessions, settings
     app.state.ai = ai or AIAdapter(settings)
@@ -48,7 +48,7 @@ def create_app(settings=None, ai=None):
     def login_page():
         return FileResponse(ROOT / 'dist' / 'login.html')
 
-    for router in (auth.router, workspace.router, imports.router, mentor.router):
+    for router in (auth.router, workspace.router, imports.router, mentor.router, sync.router):
         app.include_router(router)
     app.mount('/', StaticFiles(directory=ROOT / 'dist', html=True), name='frontend')
     return app

@@ -8,4 +8,6 @@ __pycache__
 backups
 *.db
 *.zip
+# 平台托管的 Skill 安装包必须进镜像（/downloads/ 路由），不参与上面的通用排除。
+!dist/downloads/*.zip
 node_modules
