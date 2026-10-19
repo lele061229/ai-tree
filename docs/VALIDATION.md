@@ -1,17 +1,74 @@
-# Validation record · self-hosted personal V1
+# 验证记录
 
-Automated checks completed in the development container:
+只记录**实际跑过**的检查及其环境。没跑过的一律列在最后，不写「应该没问题」。
 
-- **25 Python tests passed**: migration-created schema, session login/logout, CSRF and Origin enforcement, per-account isolation, immutable source deduplication, review/apply/version history, idempotent replay, historical progress protection, stale-preview conflict protection, server-persisted preferences and application restart, model-not-configured failure behavior, alias alignment, dependency cycle/unknown dependency rejection, real HTTP adapter request contract with MockTransport, invalid model JSON rejection, model/MySQL table-column parity, MySQL DDL compilation, private-file isolation, local secret initialization and refusal to overwrite configuration.
-- **10 JavaScript tests passed**: prototype graph invariants, immutable merge, duplicate batch handling, source retention, conflict acknowledgement, goal paths, current/historical task counts.
-- All frontend module files pass Node syntax checks; Python modules compile.
-- Compose YAML parses; database has no host port; app maps loopback only; application filesystem is read-only.
-- Compose 1.29.2 configuration parsing passed for both HTTPS IP and SSH-tunnel modes, with loopback-only app mapping, a private database, and health dependency retained. The isolated parser environment uses Python 3.12 and dependency-consistent PyYAML 5.4.1; it does not reproduce the target host kernel or Docker daemon.
-- SSH-tunnel tests cover loopback-only initialization, rejection of public HTTP/invalid origins, runtime cookie guards, login, authenticated writes and logout.
-- Backup/restore/entrypoint/Compose-wrapper/initializer shell syntax checks pass; Python dependency consistency check passes.
+## 当前汇总（2026-10-19）
 
-Python integration tests use temporary SQLite files and actual Alembic migrations. Model responses use test-only adapters and HTTP MockTransport. Tests do not send user content or make paid model calls.
+| 检查 | 结果 | 命令 |
+|---|---|---|
+| 后端单元/集成 | **49 passed** | `.venv/bin/python -m pytest backend/tests -q` |
+| 前端单元 | **10 passed** | `npm test`（`node --test "tests/*.test.js"`） |
+| 同步链路 E2E | **56/56** | 见 `e2e/README.md` · `sync:review` |
+| 桌面客户端实机 | **14/14** | 见 `e2e/README.md` · `desktop:card` |
+| 桌面托盘常驻 | **4/4**（T0/T1/T2/T3） | 见 `e2e/README.md` · `desktop:tray` |
+| Compose 配置解析 | 通过 | `bash deploy/compose.sh config -q` |
+| 构建上下文体检 | 通过 | `python tools/check_build_context.py`（内部工具，未随仓库发布） |
 
-**Not yet verified:** actual MySQL 8.4 container startup/authentication, Docker image build, live Aliyun deployment, production HTTPS/login, real model-provider request, SQL backup restore against MySQL, and the new server-mode browser flow. These require the target server and chosen provider configuration. The current environment has no Docker daemon or MySQL server. Do not label these items as passed based on SQLite tests.
+## 后端 49 条覆盖的范围
 
-The installed test-client stack emits a deprecation notice for its httpx integration; the tests pass. Runtime model HTTP requests are separate from TestClient. Before a later dependency upgrade, rerun the same tests and the server acceptance workflow.
+- 迁移创建的表结构与模型定义一致；MySQL DDL 可编译。
+- 会话登录/登出、CSRF 与 Origin 校验、跨账号隔离；非回环地址拒绝不带 Secure 的 Cookie。
+- 原文不可变与相同内容去重；确认后原子创建新版本；重复确认不产生新版本；过期预览冲突被拒。
+- 历史版本的任务计数按快照隔离，新导入任务计入当次。
+- 模型未配置时明确报错，不用示例回答兜底；模型返回非法 JSON 被拒。
+- 同步协议：凭据鉴权、幂等重放、`submissionId` 冲突、基线版本过期、并发 409。
+- 混装包（原文 + AI 摘要）来源标注为「用户授权内容（原文 + 智能体摘要，逐段标注）」，
+  不会被标成「纯摘要」。
+- **Windows ACL 行为（7 条）**：目录断开继承后只授权当前用户；`pending` / `sent` 目录一并加固；
+  收紧失败时**放弃写入凭据**（fail-closed）；ACL 收紧发生在写内容之前；`icacls` 输出解析
+  能把受托人留在路径行上（`NT AUTHORITY\SYSTEM` 含空格）。
+
+## 前端 10 条覆盖的范围
+
+图规则不变量、不可变合并、重复批次处理、原文保留、冲突确认、目标路径、当前/历史任务计数、
+导航与侧栏待审计数。
+
+## 同步链路 E2E（56 条断言）
+
+环境：本机回环后端 `http://127.0.0.1:18080` + 本地 MySQL 8.4（`127.0.0.1:3310`，库 `ko003`），
+虚构学习对话，基线 v12 → v13，节点 18 → 21。
+
+覆盖：登录 → 生成凭据 → 提交更新包 → 待审列表出现提交编号（标「待审（未进树）」）→
+审阅页逐条 diff → 确认应用 → 版本号与节点数变化 → 来源标注与等级边界。
+
+边界断言（这部分是本项目最容易出错的地方，单独列出）：
+
+- 「已实践 / 仅讨论 / 尚未执行」三类内容分别落到 `practiced` / `discussed` / `pending`，数量 1 / 1 / 0。
+- 项目阶段仍是「讨论」，没有因为提交更新包而变成「进行中」或「已上线」。
+- `recommended[]`（推荐下一课）没有出现在「已学节点」里，也没有被算进能力等级。
+- 审阅页显示的来源与包内 `fragments` 一致；混装包不会显示成「AI 摘要」。
+
+## 桌面客户端实机
+
+环境同上（隔离后端），Electron 44.9.0 免安装目录，Windows 11。
+
+- 卡片：标题/目标/下一步/待审数/时间戳来自真实 `/api/card`；尺寸 360×220（+16px 无框窗口边框）。
+- 收起 → 胶囊态 52 高 → 再展开 236 高，双向都验过。
+- 打开完整知识树：复用主窗口，节点数与后端一致。
+- 拖动：OS 级鼠标事件（非 CDP 模拟），窗口移动后 `config.json` 的 `cardBounds` 同步持久化。
+- 托盘：点 × 后 OS 层窗口 `IsWindowVisible=false`，进程存活；再次启动触发单实例锁并恢复卡片显示。
+
+## 未验证（本轮不做，也不声称通过）
+
+| 项 | 为什么没做 |
+|---|---|
+| Docker 镜像实际构建 | 开发环境无 Docker 引擎（WSL 被安全策略封锁） |
+| 容器内 `GET /downloads/knowledge-os-sync-1.1.1.zip` | 同上；只在本地 uvicorn 上验过 200 + 哈希一致 |
+| 生产部署、HTTPS、真实域名 | 本轮不部署 |
+| 真实模型供应商请求 | 没有可用密钥；测试用 MockTransport 与测试适配器 |
+| 备份/恢复到真实 MySQL | 脚本与语法检查有，生产库恢复未做 |
+| 托盘右键「退出 AI Tree」 | Win11 对 UIA 屏蔽通知区，无法自动化；需人工点一次 |
+| 安装包 / 代码签名 | 当前只有免安装目录，未签名 |
+| macOS / Linux 桌面 | 只在 Windows 11 上构建与验收 |
+
+**不要把 SQLite 测试当作 MySQL 已验收的证据**，也不要把本地 `uvicorn` 的通过当作镜像可用。

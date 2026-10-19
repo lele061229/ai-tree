@@ -1,0 +1,15 @@
+{
+  "name": "ai-tree-e2e",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AI Tree 端到端脚本（同步审阅链路 + 桌面客户端实机验收）",
+  "license": "UNLICENSED",
+  "scripts": {
+    "sync:review": "node sync/review-flow.cjs",
+    "desktop:card": "node desktop/card.cjs",
+    "desktop:tray": "node desktop/tray.cjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.49.0"
+  }
+}

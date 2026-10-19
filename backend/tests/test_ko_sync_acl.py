@@ -77,17 +77,17 @@ def test_parse_acl_keeps_trustee_on_the_path_line(acl_root):
     """真实 icacls 输出里第一个 ACE 和路径同行，且受托人含空格。"""
     m = load_ko_sync(acl_root / 'case7')
     sample = (
-        'C:\\Users\\lenovo\\.ko-sync NT AUTHORITY\\SYSTEM:(OI)(CI)(F)\r\n'
+        'C:\\Users\\example\\.ko-sync NT AUTHORITY\\SYSTEM:(OI)(CI)(F)\r\n'
         '                         BUILTIN\\Administrators:(OI)(CI)(F)\r\n'
         '                         LER\\lenovo:(OI)(CI)(F)\r\n'
         '\r\nSuccessfully processed 1 files; Failed processing 0 files\r\n'
     )
-    entries = m.parse_acl(sample, 'C:\\Users\\lenovo\\.ko-sync')
+    entries = m.parse_acl(sample, 'C:\\Users\\example\\.ko-sync')
     assert [name for name, _ in entries] == [
         'NT AUTHORITY\\SYSTEM', 'BUILTIN\\Administrators', 'LER\\lenovo'], entries
 
-    file_sample = 'C:\\Users\\lenovo\\.ko-sync\\config.json LER\\lenovo:(F)\r\n\r\nSuccessfully processed 1 files; Failed processing 0 files\r\n'
-    entries = m.parse_acl(file_sample, 'C:\\Users\\lenovo\\.ko-sync\\config.json')
+    file_sample = 'C:\\Users\\example\\.ko-sync\\config.json LER\\lenovo:(F)\r\n\r\nSuccessfully processed 1 files; Failed processing 0 files\r\n'
+    entries = m.parse_acl(file_sample, 'C:\\Users\\example\\.ko-sync\\config.json')
     assert entries == [('LER\\lenovo', 'F')], entries
 
 

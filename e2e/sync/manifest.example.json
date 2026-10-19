@@ -1,0 +1,30 @@
+{
+  "_说明": "示例清单，全部为虚构值。运行前必须替换成你自己那次待审提交的真实数据。",
+  "_字段": {
+    "submissionId": "待审列表里的提交编号",
+    "baseVersion": "提交时知识树的版本号（整数）",
+    "expectedVersion": "确认应用后应变成的版本号（不填则取 baseVersion + 1）",
+    "nodesBefore / nodesAfter": "确认前后的节点总数",
+    "titles": "三个节点的准确标题：已实践 / 仅讨论 / 尚未执行的项目",
+    "scopeKeyword": "整次提交的范围关键词，用于断言来源标题",
+    "projectStatement": "用户对项目状态的原话（会被标为「用户陈述（未独立验证）」）",
+    "openKeyword": "讨论类内容里保留的未实测问题关键词",
+    "mixed": "是否混装包（同时含原文与 AI 摘要）",
+    "agentName": "包内 agent 字段的名字，用于断言审阅页显示"
+  },
+  "submissionId": "sub_example_0001",
+  "baseVersion": 3,
+  "expectedVersion": 4,
+  "nodesBefore": 12,
+  "nodesAfter": 15,
+  "titles": {
+    "practiced": "示例：用脚本批量重命名文件",
+    "discussed": "示例：数据库事务隔离级别",
+    "project": "示例：个人记账小工具"
+  },
+  "scopeKeyword": "示例：2026-10-18 的一次练习记录",
+  "projectStatement": "还只是在本机跑通了原型，没有部署给别人用",
+  "openKeyword": "没有实测",
+  "mixed": true,
+  "agentName": "workbuddy"
+}
