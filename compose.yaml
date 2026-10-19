@@ -20,7 +20,14 @@ services:
       retries: 30
       start_period: 30s
   app:
-    build: .
+    build:
+      context: .
+      args:
+        APP_VERSION: ${APP_VERSION:-0.3.1}
+        APP_COMMIT: ${APP_COMMIT:-unknown}
+    # 固定镜像名：compose 默认会打成 <project>-<service>（knowledge-os-app），
+    # 而升级/回退文档按版本号记录镜像标识；名字对不上会导致回退时 tag 了却用不上。
+    image: aitree-sync:${APP_VERSION:-0.3.1}
     restart: unless-stopped
     depends_on:
       db: {condition: service_healthy}
