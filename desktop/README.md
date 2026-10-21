@@ -15,7 +15,7 @@
 | 安装包 / 代码签名 | 未实现；当前只有免安装目录，未签名 |
 | macOS / Linux | 未构建、未验证 |
 
-详细结果见仓库根 `docs/VALIDATION.md` 与 `reports/KO-DESKTOP-001-launch-fix.md`。
+详细结果见仓库根 `docs/VALIDATION.md`；0.1.2 的桌面验收记录为：启动矩阵 87/87、托盘退出 15/15、IPC/导航 14/14、安全单测 5/5。
 
 ## 启动与退出行为
 
