@@ -230,7 +230,7 @@ function pkg(id, key, title) {
     }
 
     // 2.3 Skill 本地目标：config --local 自动发现 + submit
-    // 注意：不能从 EXE_DIR 往上推——交付包可能放在交付目录（如 C:\Users\lenovo\AITreeLocal），
+    // 注意：不能从 EXE_DIR 往上推——交付包可能被放在任意交付目录（例如 %USERPROFILE%\AITreeLocal），
     // 与仓库不再相邻。脚本自身位置才是稳定锚点。
     const skillScript = path.join(__dirname, '..', '..', 'skill', 'knowledge-os-sync', 'scripts', 'ko_sync.py');
     // 打包目录外找仓库里的 skill；找不到则用资源副本
