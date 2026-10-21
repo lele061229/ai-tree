@@ -1,7 +1,7 @@
 {
   "name": "ai-tree-desktop",
   "productName": "AI Tree",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "private": true,
   "description": "AI Tree 桌面客户端：托盘常驻 + 学习卡片 + 完整能力树窗口",
   "license": "UNLICENSED",
@@ -23,10 +23,12 @@
     },
     "files": [
       "main.js",
+      "security.js",
       "preload-card.js",
       "preload-settings.js",
       "settings.html",
       "settings.js",
+      "error.html",
       "icon.png"
     ],
     "win": {
