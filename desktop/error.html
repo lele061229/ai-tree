@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>AI Tree · 暂时连不上服务器</title>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+    background: #f7f9f1; color: #3c4232;
+    height: 100vh; display: flex; align-items: center; justify-content: center;
+  }
+  .wrap { padding: 18px 20px; width: 100%; max-width: 480px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: #c96f2f; margin-bottom: 10px; }
+  h1 { font-size: 15px; font-weight: 600; margin-bottom: 6px; }
+  p { font-size: 12px; line-height: 1.6; color: #6b7358; }
+  .meta { font-size: 11px; color: #99a088; word-break: break-all; margin-top: 4px; }
+  .row { display: flex; gap: 8px; margin-top: 14px; }
+  button {
+    font: inherit; font-size: 12px; padding: 6px 14px; border-radius: 6px;
+    border: 1px solid #b8c19d; background: #e6edcf; color: #3c4232; cursor: pointer;
+  }
+  button:hover { background: #dce4bd; }
+  button.ghost { background: transparent; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="dot"></div>
+  <h1 id="title">暂时连不上服务器</h1>
+  <p id="desc">请确认网络或服务器已恢复，然后点"重试"。也可以从托盘菜单打开「服务器地址…」检查配置。</p>
+  <p class="meta" id="meta"></p>
+  <div class="row">
+    <button id="retry">重试</button>
+    <button id="hide" class="ghost">收起卡片</button>
+  </div>
+</div>
+<script>
+// 参数一律用 textContent 注入，不拼 HTML，避免任何注入面。
+const params = new URLSearchParams(location.search);
+const target = params.get('target') || '';
+const kind = params.get('kind') || 'main';
+const code = params.get('code') || '';
+const desc = params.get('desc') || '';
+document.getElementById('meta').textContent = [target, code, desc].filter(Boolean).join('  ·  ');
+if (kind !== 'card') document.getElementById('hide').style.display = 'none';
+if (kind !== 'card') document.getElementById('title').textContent = '完整窗口暂时连不上服务器';
+document.getElementById('retry').addEventListener('click', () => {
+  // 直接导航回目标 URL；主进程的 will-navigate 白名单只放行配置里的服务器地址。
+  if (target) location.href = target;
+});
+document.getElementById('hide').addEventListener('click', () => {
+  if (window.koDesktop && window.koDesktop.hideCard) window.koDesktop.hideCard();
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,42 @@
+{
+  "name": "ai-tree-desktop",
+  "productName": "AI Tree",
+  "version": "0.1.2",
+  "private": true,
+  "description": "AI Tree 桌面客户端：托盘常驻 + 学习卡片 + 完整能力树窗口",
+  "license": "UNLICENSED",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "pack": "electron-builder --dir --win",
+    "dist": "electron-builder --win portable"
+  },
+  "devDependencies": {
+    "electron": "44.9.0",
+    "electron-builder": "26.15.3"
+  },
+  "build": {
+    "appId": "local.aitree.desktop",
+    "productName": "AI Tree",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "security.js",
+      "preload-card.js",
+      "preload-settings.js",
+      "settings.html",
+      "settings.js",
+      "error.html",
+      "icon.png"
+    ],
+    "win": {
+      "target": [
+        "dir"
+      ],
+      "icon": "icon.png",
+      "signAndEditExecutable": false
+    }
+  }
+}
