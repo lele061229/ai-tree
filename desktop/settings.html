@@ -22,12 +22,17 @@
 </style>
 </head>
 <body>
-  <h1>连接你的 AI Tree 服务器</h1>
-  <p>卡片和完整窗口都会加载这个地址上的页面，共用一份登录会话。你只需要在这里填写一次。</p>
+  <h1>AI Tree 数据位置</h1>
+  <p>默认使用<b>本机数据</b>：内置服务只监听 127.0.0.1，数据保存在你电脑上的用户数据目录，不联网也能用。</p>
 
-  <label for="url">服务器地址</label>
+  <div class="row">
+    <button id="useLocal">使用本机数据（默认）</button>
+  </div>
+  <div class="hint">当前模式：<code id="mode">读取中</code></div>
+
+  <label for="url" style="margin-top:22px">改用云服务器（可选）</label>
   <input id="url" type="text" placeholder="https://你的域名" autocomplete="off" spellcheck="false">
-  <div class="hint">必须是 https:// 的完整地址；只有本机回环（127.0.0.1 / localhost）允许 http://。</div>
+  <div class="hint">必须是 https:// 的完整地址；只有本机回环（127.0.0.1 / localhost）允许 http://。<br>注意：云账号绑定与双向同步<b>尚未实现</b>，当前版本连到云服务器只加载页面，不自动上传资料。</div>
 
   <div class="row">
     <button id="save">保存并打开</button>

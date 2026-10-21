@@ -5,6 +5,13 @@ const { app, BrowserWindow, Menu, Tray, ipcMain, screen, shell, dialog, nativeIm
 const path = require('node:path');
 const fs = require('node:fs');
 const { normalizeBase, sameOrigin, isExactFile } = require('./security');
+const backendManager = require('./backend-manager');
+backendManager._log = (...parts) => log(...parts);
+
+// 自动化验收钩子：KO_USERDATA 指定隔离数据目录（仅测试用，正常启动不设置）。
+if (process.env.KO_USERDATA) {
+  app.setPath('userData', process.env.KO_USERDATA);
+}
 
 const CARD_W = 360;
 const CARD_H = 220;
@@ -53,6 +60,7 @@ app.on('render-process-gone', (_event, webContents, details) => {
 app.on('child-process-gone', (_event, details) => log('child-process-gone', details));
 
 let tray = null;
+let trayMenuTemplate = null; // 供自测用：与真实菜单同一份模板
 let cardWin = null;
 let mainWin = null;
 let settingsWin = null;
@@ -89,7 +97,17 @@ function writeConfig(patch) {
 // 只接受 https；回环地址允许 http（开发/隧道用）。
 // normalizeBase 已抽到 security.js（与测试共用同一实现）。
 
-const baseUrl = () => normalizeBase(readConfig().serverUrl);
+// —— 运行模式 ——
+// 本地优先：serverUrl 缺省或显式为 'local' 时，使用内置本地服务（见 backend-manager.js）。
+// 也可以指向云服务器（https://…）；云账号绑定与双向同步本轮尚未实现，设置页已明确标注。
+const LEGACY_TEST_ORIGINS = ['http://127.0.0.1:18080']; // 历史隔离测试地址，自动迁移为本地模式
+
+function isLocalMode() {
+  const raw = readConfig().serverUrl;
+  return !raw || raw === 'local' || LEGACY_TEST_ORIGINS.includes(normalizeBase(raw));
+}
+
+const baseUrl = () => (isLocalMode() ? backendManager.origin() : normalizeBase(readConfig().serverUrl));
 // 精确 origin 比较：不使用字符串前缀，避免同前缀域名/不同端口被误放行。
 const isServerUrl = (target) => sameOrigin(target, baseUrl());
 
@@ -175,10 +193,11 @@ function attachLoadErrors(win, kind) {
 
 // 服务器不可达 / 加载失败时，显示本地错误页（不忽略证书错误，保留正常校验）。
 // “重试”由错误页直接导航回目标 URL；will-navigate 白名单保证只能回到我们的 base。
-function showLocalError(win, kind, code, desc) {
+function showLocalError(win, kind, code, desc, explicitTarget) {
   if (!win || win.isDestroyed()) return;
-  const target = kind === 'card' ? baseUrl() + '/card.html' : baseUrl() + '/';
-  if (!target) return; // 没有有效地址时由设置窗口接管
+  const target = explicitTarget
+    || (kind === 'card' ? baseUrl() + '/card.html' : baseUrl() + '/');
+  if (!target || target === '/') return; // 没有有效地址时由设置窗口接管
   const query = '?kind=' + encodeURIComponent(kind)
     + '&code=' + encodeURIComponent(String(code))
     + '&desc=' + encodeURIComponent(String(desc || ''))
@@ -211,9 +230,14 @@ function createCard() {
   });
   guardWebContents(cardWin.webContents);
   attachLoadErrors(cardWin, 'card');
-  cardWin.loadURL(baseUrl() + '/card.html')
-    .catch(err => logLoadFailure('card loadURL rejected', err));
-  cardWin.once('ready-to-show', () => { if (cardVisible && !cardWin.isDestroyed() && !cardWin.isVisible()) cardWin.showInactive(); });
+  if (baseUrl()) {
+    cardWin.loadURL(baseUrl() + '/card.html')
+      .catch(err => logLoadFailure('card loadURL rejected', err));
+  } else {
+    // 本地服务未就绪（启动失败或正在重启）：直接显示本地错误页，重试走 IPC。
+    showLocalError(cardWin, 'card', 'BACKEND', '本地服务未就绪', 'http://127.0.0.1:' + backendManager.PREFERRED_PORT + '/card.html');
+  }
+  cardWin.once('ready-to-show', () => { if (cardVisible && !cardWin.isDestroyed() && !cardWin.isVisible()) cardWin.show(); });
   // 页面加载完成后再补一次可见性，避免早于 preload 监听时丢掉首帧轮询。
   cardWin.webContents.once('did-finish-load', () => {
     if (cardWin && !cardWin.isDestroyed()) cardWin.webContents.send('card:visibility', cardVisible);
@@ -250,7 +274,11 @@ function showCard() {
   if (quitting) { log('showCard ignored (quitting)'); return; }
   const win = createCard();
   cardVisible = true;
-  if (!win.isVisible()) win.showInactive();
+  // 用户动作（双击启动 / 再次双击 / 托盘“显示卡片”）必须看得见：
+  // 卡片 360x220、无边框、skipTaskbar，如果只 showInactive()，窗口会停在
+  // 上一次的位置且不抢焦点，用户观感就是“双击了但什么都没发生”。
+  if (!win.isVisible()) win.show();
+  win.focus();
   win.setAlwaysOnTop(alwaysOnTop);
   win.webContents.send('card:visibility', true);
 }
@@ -285,11 +313,134 @@ function openMain() {
   });
   guardWebContents(mainWin.webContents);
   attachLoadErrors(mainWin, 'main');
-  mainWin.loadURL(baseUrl() + '/')
-    .catch(err => logLoadFailure('main loadURL rejected', err));
+  if (baseUrl()) {
+    mainWin.loadURL(baseUrl() + '/')
+      .catch(err => logLoadFailure('main loadURL rejected', err));
+  } else {
+    showLocalError(mainWin, 'main', 'BACKEND', '本地服务未就绪', 'http://127.0.0.1:' + backendManager.PREFERRED_PORT + '/');
+  }
   mainWin.once('ready-to-show', () => { if (!mainWin.isDestroyed() && !mainWin.isVisible()) mainWin.show(); });
   mainWin.on('closed', () => { mainWin = null; });
   return mainWin;
+}
+
+// —— 本地优先：内置后端生命周期 + 自动登录 + 备份/恢复 ——
+let backendStarting = null; // Promise 去重：多窗口同时等待时只启动一次
+
+function startLocalBackend() {
+  if (backendManager.running()) return Promise.resolve(true);
+  if (backendStarting) return backendStarting;
+  backendStarting = backendManager.start()
+    .then(async info => {
+      log('local backend ready', { port: info.port, pid: info.pid, dataDir: info.dataDir });
+      await ensureLocalLogin();
+      return true;
+    })
+    .catch(err => {
+      log('local backend failed', String((err && err.stack) || err) + (err && err.tail ? ' | tail: ' + err.tail : ''));
+      backendStarting = null;
+      return false;
+    });
+  return backendStarting;
+}
+
+// 本地会话：用数据目录里的本地账号（仅本机可读的 local-auth.json）登录，
+// cookie 写入应用分区。云服务器模式不做这一步。
+async function ensureLocalLogin() {
+  const origin = backendManager.origin();
+  if (!origin) return;
+  try {
+    const ses = session.fromPartition(PARTITION);
+    const check = await ses.fetch(origin + '/api/session', { credentials: 'include' });
+    if (check.status === 200) { log('local session valid'); return; }
+    const authPath = path.join(backendManager.dataDir(), 'local-auth.json');
+    const cred = JSON.parse(fs.readFileSync(authPath, 'utf8'));
+    const resp = await ses.fetch(origin + '/api/login', {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json', 'Origin': origin },
+      body: JSON.stringify({ username: cred.username, password: cred.password }),
+    });
+    log('local auto-login', resp.status);
+  } catch (err) {
+    log('local auto-login failed', String((err && err.stack) || err));
+  }
+}
+
+function runLocalTool(args) {
+  const root = process.resourcesPath || path.join(__dirname, '..', '..');
+  const py = path.join(root, 'runtime', 'python.exe');
+  const exe = fs.existsSync(py) ? py : (process.env.KO_LOCAL_PYTHON || py);
+  return new Promise(resolve => {
+    const p = require('node:child_process').spawn(exe, ['-m', 'backend.local', ...args], {
+      cwd: root, windowsHide: true, env: { ...process.env, PYTHONPATH: root },
+    });
+    let out = '';
+    p.stdout.on('data', d => { out += d; });
+    p.stderr.on('data', d => { out += d; });
+    p.on('exit', code => resolve({ code, out: out.trim() }));
+    p.on('error', err => resolve({ code: -1, out: String(err) }));
+  });
+}
+
+async function backupLibrary() {
+  if (!isLocalMode()) { dialog.showMessageBox({ type: 'info', message: '当前连接的是云服务器，备份请在服务器端进行。' }); return; }
+  const stamp = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+  const { canceled, filePath } = await dialog.showSaveDialog({
+    title: '备份知识库',
+    defaultPath: 'ai-tree-backup-' + stamp + '.db',
+    filters: [{ name: 'SQLite 数据库', extensions: ['db'] }],
+  });
+  if (canceled || !filePath) return;
+  log('backup start', filePath);
+  const result = await runLocalTool(['backup', '--data', backendManager.dataDir(), '--out', filePath]);
+  log('backup done', result);
+  dialog.showMessageBox(result.code === 0
+    ? { type: 'info', message: '备份完成', detail: filePath }
+    : { type: 'error', message: '备份失败', detail: result.out || ('exit ' + result.code) });
+}
+
+async function restoreLibrary() {
+  if (!isLocalMode()) { dialog.showMessageBox({ type: 'info', message: '当前连接的是云服务器，恢复请在服务器端进行。' }); return; }
+  const { canceled, filePaths } = await dialog.showOpenDialog({
+    title: '恢复知识库',
+    filters: [{ name: 'SQLite 数据库', extensions: ['db'] }],
+    properties: ['openFile'],
+  });
+  if (canceled || !filePaths || !filePaths[0]) return;
+  const { response } = await dialog.showMessageBox({
+    type: 'warning',
+    message: '用备份覆盖当前本地数据？',
+    detail: '当前未同步到云端的改动会丢失（本轮版本尚无云同步）。恢复会自动重启本地服务。',
+    buttons: ['取消', '恢复'],
+    defaultId: 0, cancelId: 0,
+  });
+  if (response !== 1) return;
+  log('restore start', filePaths[0]);
+  backendManager.stop();
+  // 等本地服务真正退出，避免 ko.db 仍被占用
+  for (let i = 0; i < 60 && backendManager.running(); i++) await new Promise(r => setTimeout(r, 200));
+  const result = await runLocalTool(['restore', '--data', backendManager.dataDir(), '--from', filePaths[0]]);
+  log('restore done', result);
+  if (result.code !== 0) {
+    dialog.showMessageBox({ type: 'error', message: '恢复失败', detail: result.out || ('exit ' + result.code) });
+    await startLocalBackend();
+    return;
+  }
+  // 数据已换：分区里的旧登录会话/前端缓存不再可信，清掉后重建窗口
+  await session.fromPartition(PARTITION).clearStorageData();
+  if (cardWin && !cardWin.isDestroyed()) { cardWin.destroy(); cardWin = null; }
+  if (mainWin && !mainWin.isDestroyed()) { mainWin.destroy(); mainWin = null; }
+  const ok = await startLocalBackend();
+  if (ok) showCard(); else showLocalError(createCard(), 'card', 'RESTORE', '本地服务未就绪');
+}
+
+async function retryLocal(errorKind) {
+  log('retry clicked', { kind: errorKind, local: isLocalMode() });
+  if (!isLocalMode()) return;
+  const ok = await startLocalBackend();
+  if (!ok) return;
+  if (errorKind === 'card') { if (cardWin && !cardWin.isDestroyed()) { cardWin.destroy(); cardWin = null; } showCard(); }
+  else { if (mainWin && !mainWin.isDestroyed()) { mainWin.destroy(); mainWin = null; } openMain(); }
 }
 
 function openSettings() {
@@ -319,25 +470,27 @@ function quitFromTray() {
 function buildTray() {
   const image = nativeImage.createFromPath(path.join(__dirname, 'icon.png'));
   tray = new Tray(image);
-  tray.setToolTip('AI Tree');
-  const refreshMenu = () => {
-    tray.setContextMenu(Menu.buildFromTemplate([
-      { label: '显示卡片', click: showCard },
-      { label: '打开能力树', click: openMain },
-      { type: 'separator' },
-      {
-        label: '窗口置顶', type: 'checkbox', checked: alwaysOnTop,
-        click: item => {
-          alwaysOnTop = item.checked;
-          if (cardWin && !cardWin.isDestroyed()) cardWin.setAlwaysOnTop(alwaysOnTop);
-          writeConfig({ alwaysOnTop });
-        },
+  tray.setToolTip('AI Tree 本地版 v' + app.getVersion());
+  const menuTemplate = () => [
+    { label: '显示卡片', click: showCard },
+    { label: '打开能力树', click: openMain },
+    { type: 'separator' },
+    {
+      label: '窗口置顶', type: 'checkbox', checked: alwaysOnTop,
+      click: item => {
+        alwaysOnTop = item.checked;
+        if (cardWin && !cardWin.isDestroyed()) cardWin.setAlwaysOnTop(alwaysOnTop);
+        writeConfig({ alwaysOnTop });
       },
-      { label: '服务器地址…', click: openSettings },
-      { type: 'separator' },
-      { label: '退出 AI Tree', click: quitFromTray },
-    ]));
-  };
+    },
+    { label: '服务器地址…', click: openSettings },
+    { label: '备份知识库…', click: backupLibrary },
+    { label: '恢复知识库…', click: restoreLibrary },
+    { type: 'separator' },
+    { label: '退出 AI Tree', click: quitFromTray },
+  ];
+  const refreshMenu = () => { tray.setContextMenu(Menu.buildFromTemplate(menuTemplate())); };
+  trayMenuTemplate = menuTemplate;
   refreshMenu();
   tray.on('click', toggleCard);
   // setContextMenu 已在右键时自动弹出，这里只刷新勾选状态，避免弹两次。
@@ -419,6 +572,18 @@ ipcMain.on('shell:open-tree', event => {
   openMain();
 });
 
+// 错误页"重试"：只接受本应用窗口的顶层 frame，且页面要么是我们的错误页、
+// 要么是当前配置的服务器页面。本地模式下由主进程重启本地服务。
+ipcMain.on('shell:retry', (event, kind) => {
+  const info = frameInfo(event);
+  const okCard = info.top && isWindowSender(event, cardWin)
+    && (isExactFile(info.url, path.join(__dirname, 'error.html')) || isServerUrl(info.url));
+  const okMain = info.top && isWindowSender(event, mainWin)
+    && (isExactFile(info.url, path.join(__dirname, 'error.html')) || isServerUrl(info.url));
+  if (!okCard && !okMain) return rejectIpc('shell:retry', event);
+  retryLocal(okCard ? 'card' : 'main');
+});
+
 ipcMain.on('settings:get', event => {
   if (!fromSettings(event)) return rejectIpc('settings:get', event);
   event.returnValue = { serverUrl: readConfig().serverUrl || '', configPath: configPath() };
@@ -426,6 +591,15 @@ ipcMain.on('settings:get', event => {
 
 ipcMain.handle('settings:save', (event, raw) => {
   if (!fromSettings(event)) return { ok: false, reason: '来源不受信任' };
+  if (String(raw || '').trim() === 'local') {
+    writeConfig({ serverUrl: 'local' });
+    if (settingsWin && !settingsWin.isDestroyed()) settingsWin.close();
+    if (cardWin && !cardWin.isDestroyed()) { cardWin.destroy(); cardWin = null; }
+    if (mainWin && !mainWin.isDestroyed()) { mainWin.destroy(); mainWin = null; }
+    backendStarting = null;
+    startLocalBackend().then(ok => { if (ok) showCard(); else showLocalError(createCard(), 'card', 'BACKEND', '本地服务启动失败'); });
+    return { ok: true, base: 'local' };
+  }
   const base = normalizeBase(raw);
   if (!base) return { ok: false, reason: '地址必须是以 https:// 开头的完整地址（本机回环可用 http://）' };
   writeConfig({ serverUrl: base });
@@ -476,7 +650,7 @@ function registerLifecycle() {
     }
   });
 
-  app.whenReady().then(() => {
+  app.whenReady().then(async () => {
     // 设备权限一律拒绝：卡片与窗口都不需要摄像头、麦克风、通知等。
     session.fromPartition(PARTITION).setPermissionRequestHandler((_wc, _permission, callback) => callback(false));
     session.fromPartition(PARTITION).setPermissionCheckHandler(() => false);
@@ -484,7 +658,12 @@ function registerLifecycle() {
     alwaysOnTop = readConfig().alwaysOnTop !== false;
     buildTray();
 
-    if (!baseUrl()) {
+    if (isLocalMode()) {
+      // 本地优先：先等内置后端就绪再开窗口；失败时卡片显示错误页 + 重试。
+      const ok = await startLocalBackend();
+      if (ok) showCard();
+      else showLocalError(createCard(), 'card', 'BACKEND', '本地服务启动失败', 'http://127.0.0.1:' + backendManager.PREFERRED_PORT + '/card.html');
+    } else if (!baseUrl()) {
       openSettings();
     } else {
       showCard();
@@ -492,15 +671,33 @@ function registerLifecycle() {
 
     // 仅用于自动化验收：用 --self-test-tray-menu 启动时把真实托盘菜单弹出，
     // 菜单项仍由外部真实 UI 点击（不是代码直接调用退出）。正常启动不会进入这里。
+    // 每 2 秒重新弹一次、最多 8 次：UIA 侧启动有秒级延迟，菜单若只弹一次很容易在
+    // 被外部工具看到之前就被窗口激活挤掉（实测 Win11 + Electron 44 会这样）。
     if (process.argv.includes('--self-test-tray-menu')) {
-      setTimeout(() => {
+      let pops = 0;
+      const pop = () => {
+        if (quitting || pops >= 8) return;
+        pops += 1;
         try {
-          log('self-test: popup tray menu');
-          if (tray) tray.popUpContextMenu();
+          let bounds = null;
+          try { bounds = tray && tray.getBounds(); } catch {}
+          log('self-test: popup tray menu', { pops, hasTray: !!tray, bounds });
+          if (tray) {
+            // 显式给锚点：默认按当前光标位置弹出，光标常常不在托盘上，
+            // 菜单会弹在别处或被立刻关掉（自动化环境里几乎必然如此）。
+            // 注意 Electron 44 里第一个参数不能是 undefined，必须给真实 Menu。
+            const pos = bounds && bounds.width
+              ? { x: Math.round(bounds.x + bounds.width / 2), y: Math.round(bounds.y + bounds.height) }
+              : undefined;
+            if (pos && trayMenuTemplate) tray.popUpContextMenu(Menu.buildFromTemplate(trayMenuTemplate()), pos);
+            else tray.popUpContextMenu();
+          }
         } catch (err) {
           log('self-test popup failed', String((err && err.stack) || err));
         }
-      }, 1500);
+        setTimeout(pop, 2000);
+      };
+      setTimeout(pop, 1500);
     }
 
     initDone = true;
@@ -516,6 +713,8 @@ function registerLifecycle() {
     if (!quitStartedAt) quitStartedAt = Date.now();
     log('before-quit', { quitting, elapsedMs: Date.now() - quitStartedAt });
     quitting = true;
+    backendStarting = null;
+    backendManager.stop(); // 本地服务随主进程退出（SQLite WAL 保证已提交事务不丢）
     // 直接销毁窗口与托盘，避免 close 拦截拖住退出；session 仍会由 Electron 正常收尾。
     for (const win of [cardWin, mainWin, settingsWin]) {
       if (win && !win.isDestroyed()) { win.removeAllListeners('close'); win.destroy(); }
@@ -539,7 +738,26 @@ function registerLifecycle() {
   const gotLock = await acquireSingleInstanceLock();
   if (!gotLock) {
     // 已有存活实例：本次启动只负责把参数交给它，然后退出。
-    app.quit();
+    // 但“静默退出”在用户看来就是“双击没反应”，必须给出可见反馈。
+    log('another instance holds the lock, exiting with notice');
+    app.whenReady().then(() => {
+      try {
+        dialog.showMessageBoxSync({
+          type: 'info',
+          title: 'AI Tree 本地版',
+          message: 'AI Tree 本地版已经在运行',
+          detail: '后台已经有一个实例（在托盘里）。\n\n'
+            + '· 看任务栏右下角「^」里的 AI Tree 本地版 图标，双击可显示卡片；\n'
+            + '· 右键该图标可以打开能力树或退出。\n\n'
+            + '如果托盘里也找不到，用任务管理器结束 AITreeLocal.exe 后重新双击。',
+          buttons: ['知道了'],
+          noLink: true,
+        });
+      } catch (err) {
+        log('notice dialog failed', String((err && err.stack) || err));
+      }
+      app.quit();
+    });
     return;
   }
   registerLifecycle();

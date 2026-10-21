@@ -18,13 +18,13 @@
 Windows（PowerShell）：
 
 ```powershell
-Expand-Archive knowledge-os-sync-1.1.1.zip -DestinationPath "$env:USERPROFILE\.workbuddy\skills" -Force
+Expand-Archive knowledge-os-sync-1.1.3.zip -DestinationPath "$env:USERPROFILE\.workbuddy\skills" -Force
 ```
 
 macOS / Linux：
 
 ```bash
-unzip knowledge-os-sync-1.1.1.zip -d ~/.workbuddy/skills/
+unzip knowledge-os-sync-1.1.3.zip -d ~/.workbuddy/skills/
 ```
 
 安装后重开会话，技能列表里应出现 `knowledge-os-sync`。

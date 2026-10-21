@@ -31,6 +31,60 @@ _ACL_DONE = set()
 DIR_WARNINGS = []
 
 
+def local_desktop_info():
+    """发现本机 AI Tree 桌面端（本地优先模式）。
+
+    桌面端启动本地服务后会在 <userData>/local/server.json 写 {origin, pid}。
+    查找顺序：KO_DESKTOP_SERVER_FILE（显式）→ KO_USERDATA/local →
+    %APPDATA%\\AI Tree 本地版\\local（0.2.0 起的正式名称）→ %APPDATA%\\AI Tree\\local（旧名）。
+    找不到或进程已死都返回 None——调用方显式失败，绝不静默改道云端。
+    """
+    override = os.environ.get('KO_DESKTOP_SERVER_FILE')
+    candidates = []
+    if override:
+        candidates.append(override)
+    else:
+        base = os.environ.get('KO_USERDATA')
+        if base:
+            candidates.append(os.path.join(base, 'local', 'server.json'))
+        else:
+            appdata = os.environ.get('APPDATA')
+            if not appdata:
+                return None
+            for name in ('AI Tree 本地版', 'AI Tree'):
+                candidates.append(os.path.join(appdata, name, 'local', 'server.json'))
+    info = None
+    path = None
+    for candidate in candidates:
+        try:
+            with open(candidate, encoding='utf-8') as handle:
+                info = json.load(handle)
+            path = candidate
+            break
+        except (OSError, ValueError):
+            info = None
+    if info is None:
+        return None
+    origin = info.get('origin') or ''
+    pid = info.get('pid')
+    if not origin.startswith('http://127.0.0.1:'):
+        return None
+    if pid:
+        try:
+            if WINDOWS:
+                # tasklist /FI 精确过滤；退出码 0 且包含 PID 行才算存活
+                out = subprocess.run(
+                    ['tasklist', '/FI', 'PID eq %d' % pid, '/FO', 'CSV', '/NH'],
+                    capture_output=True, text=True, timeout=10).stdout or ''
+                if str(pid) not in out:
+                    return None
+            else:
+                os.kill(pid, 0)
+        except (OSError, subprocess.SubprocessError):
+            return None
+    return {'origin': origin.rstrip('/'), 'pid': pid, 'info_path': path}
+
+
 def _record_dir_warning(message):
     if message not in DIR_WARNINGS:
         DIR_WARNINGS.append(message)
@@ -304,6 +358,9 @@ def request(method, path, config, payload=None):
                           retryable=bool(detail.get('retryable')))
         raise Failure(str(detail or 'HTTP %d' % exc.code), 'http_%d' % exc.code, body)
     except urllib.error.URLError as exc:
+        if config.get('target') == 'local':
+            raise Failure('本机 AI Tree 不可达（%s）。请先启动桌面端再重试；'
+                          '不会自动改道云端。' % exc.reason, 'network', retryable=True)
         raise Failure('无法连接 %s：%s' % (base, exc.reason), 'network', retryable=True)
     except ssl.SSLError as exc:
         raise Failure('TLS 校验失败：%s。不要用自签名证书或跳过校验来绕过。' % exc, 'tls')
@@ -366,6 +423,7 @@ def submit_package(package, config, quiet=False):
 
     status, body = request('POST', '/api/sync/submissions', config, package)
     submission = package['submissionId']
+    print('提交目标 %s（%s）' % ('本机 AI Tree' if config.get('target') == 'local' else '云端平台', config['url']))
     if body.get('duplicate'):
         print('已提交过（幂等命中），未重复创建：')
     else:
@@ -413,7 +471,17 @@ def load_pending(submission):
 
 
 def cmd_config(args):
-    url = args.url.rstrip('/')
+    if getattr(args, 'local', False) and not args.url:
+        info = local_desktop_info()
+        if not info:
+            raise Failure('没有发现运行中的本机 AI Tree 桌面端（本地服务未启动）。'
+                          '先启动桌面端，或改用 --url 指定云端地址。', 'local_unavailable')
+        url = info['origin']
+        args.insecure = False
+    elif args.url:
+        url = args.url.rstrip('/')
+    else:
+        raise Failure('请指定提交目标：--local（本机桌面端）或 --url <平台地址>。', 'bad_url')
     parsed = urllib.parse.urlparse(url)
     if parsed.scheme not in ('http', 'https'):
         raise Failure('地址必须以 http:// 或 https:// 开头', 'bad_url')
@@ -421,6 +489,7 @@ def cmd_config(args):
         raise Failure('非回环地址必须使用 https://；本轮不接受明文提交。', 'bad_url')
     config = load_config(required=False)
     config['url'] = url
+    config['target'] = 'local' if getattr(args, 'local', False) else 'cloud'
     if args.token_stdin:
         token = sys.stdin.readline().strip()
         if not token:
@@ -434,6 +503,7 @@ def cmd_config(args):
         config['insecure'] = True
     write_private(CONFIG_PATH, json.dumps(config, ensure_ascii=False, indent=1), sensitive=True)
     print('已写入 %s' % CONFIG_PATH)
+    print('提交目标 %s（%s）' % ('本机 AI Tree' if config.get('target') == 'local' else '云端平台', url))
     if WINDOWS:
         ok_dir, msg_dir, extra_dir = describe(CONFIG_DIR)
         print('目录权限 %s（%s；%s）' % ('已加固' if ok_dir else '未加固', msg_dir, extra_dir))
@@ -452,7 +522,7 @@ def cmd_config(args):
 def cmd_status(args):
     config = load_config()
     _, body = request('GET', '/api/sync/status', config)
-    print('平台地址 %s' % config['url'])
+    print('提交目标 %s（%s）' % ('本机 AI Tree' if config.get('target') == 'local' else '云端平台', config['url']))
     print('账号     %s' % body.get('user'))
     print('当前版本 v%s' % body.get('currentVersion'))
     print('模型接口 %s（本路径不需要）' % ('已配置' if body.get('aiReady') else '未配置'))
@@ -585,8 +655,9 @@ def main(argv=None):
     parser = argparse.ArgumentParser(prog='ko_sync.py', description='Knowledge OS 学习更新包同步')
     sub = parser.add_subparsers(dest='command', required=True)
 
-    p = sub.add_parser('config', help='配置平台地址与凭据')
-    p.add_argument('--url', required=True)
+    p = sub.add_parser('config', help='配置提交目标与凭据')
+    p.add_argument('--url', required=False, help='云端平台地址（--local 时不填）')
+    p.add_argument('--local', action='store_true', help='提交到本机 AI Tree 桌面端（自动发现地址）')
     p.add_argument('--token-stdin', action='store_true', help='从标准输入读取凭据（推荐）')
     p.add_argument('--insecure', action='store_true', help='仅回环地址，跳过 TLS 校验')
     p.set_defaults(func=cmd_config)

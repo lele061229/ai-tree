@@ -44,7 +44,7 @@ export function realSync(ui) {
   const skillTab = `<div class="notice"><strong>推荐入口：用你自己的智能体建树。</strong>你不用写 JSON，也不用自己跑上传命令——只需对智能体说一句「同步这次学习」。提交只进待审区，你在本页确认后才改树；这是当前版本的策略，不是架构上限。<br><strong>这条路径不需要平台配置模型。</strong>需要模型的只有「平台模型分析」和「站内 AI 导师」；它们没配置时只是各自不可用，不挡这条路。</div>
   ${credentialBlock(ui, busy)}
   <div class="section-heading"><span>② 安装并绑定 Skill</span><small>只在第一次做</small></div>
-  <a class="outline-button skill-download" href="/downloads/knowledge-os-sync-1.1.1.zip" download>下载 Skill 安装包 knowledge-os-sync-1.1.1.zip</a>
+  <a class="outline-button skill-download" href="/downloads/knowledge-os-sync-1.1.3.zip" download>下载 Skill 安装包 knowledge-os-sync-1.1.3.zip</a>
   <ol class="setup-steps"><li>解压到智能体的 skills 目录。WorkBuddy 的路径是 <code>%USERPROFILE%\\.workbuddy\\skills\\knowledge-os-sync</code>。</li><li>把上面生成的凭据通过标准输入写入一次：<code>python ko_sync.py config --url ${esc(location.origin)} --token-stdin</code>。</li><li>跑一次 <code>python ko_sync.py check</code>：凭据权限、平台地址、连通性三项都应为「通过」。</li></ol>
   <div class="notice">宿主支持状态：<strong>WorkBuddy 已实测通过</strong>（本页的这些提交就来自它）。其他宿主（Claude Code、Codex、Cursor 等）只要能把 SKILL.md 放进技能目录并允许执行本地命令，原则上同样可用，但<strong>尚未逐项实测</strong>，以你的环境为准。安装 Skill 不等于它会自动监听聊天：只有你明确要求「同步这次学习」时才会提交。</div>
   <div class="section-heading"><span>③ 第一次使用</span></div>

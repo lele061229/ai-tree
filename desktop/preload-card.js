@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld('koDesktop', {
     ipcRenderer.send('card:set-collapsed', collapsed);
   },
   hideCard: () => ipcRenderer.send('card:hide'),
+  retry: (kind) => ipcRenderer.send('shell:retry', String(kind || 'card').slice(0, 20)),
   openTree: () => {
     if (!onServerPage()) return;
     ipcRenderer.send('shell:open-tree');

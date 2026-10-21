@@ -47,7 +47,9 @@ document.getElementById('meta').textContent = [target, code, desc].filter(Boolea
 if (kind !== 'card') document.getElementById('hide').style.display = 'none';
 if (kind !== 'card') document.getElementById('title').textContent = '完整窗口暂时连不上服务器';
 document.getElementById('retry').addEventListener('click', () => {
-  // 直接导航回目标 URL；主进程的 will-navigate 白名单只放行配置里的服务器地址。
+  // 本地模式：走 IPC 让主进程重启本地服务并重建窗口（target 可能已因换端口失效）。
+  if (window.koDesktop && window.koDesktop.retry) { window.koDesktop.retry(kind); return; }
+  // 云模式：直接导航回目标 URL；主进程的 will-navigate 白名单只放行配置里的服务器地址。
   if (target) location.href = target;
 });
 document.getElementById('hide').addEventListener('click', () => {
