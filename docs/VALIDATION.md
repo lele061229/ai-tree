@@ -2,7 +2,7 @@
 
 只记录**实际跑过**的检查及其环境。没跑过的一律列在最后，不写「应该没问题」。
 
-## 当前汇总（2026-10-19）
+## 当前汇总（2026-10-21）
 
 | 检查 | 结果 | 命令 |
 |---|---|---|
@@ -11,8 +11,13 @@
 | 同步链路 E2E | **56/56** | 见 `e2e/README.md` · `sync:review` |
 | 桌面客户端实机 | **14/14** | 见 `e2e/README.md` · `desktop:card` |
 | 桌面托盘常驻 | **4/4**（T0/T1/T2/T3） | 见 `e2e/README.md` · `desktop:tray` |
+| 本地优先桌面端 0.2.0 实机 | **35 通过 / 2 环境受阻 / 0 失败** | `cd desktop && node test/local-mvp.cjs`（需 `KO_EXE`、`KO_PYTHON`） |
 | Compose 配置解析 | 通过 | `bash deploy/compose.sh config -q` |
 | 构建上下文体检 | 通过 | `python tools/check_build_context.py`（内部工具，未随仓库发布） |
+
+本地优先 0.2.0 的实机结果、修复项与受阻原因见 `ko-dev/reports/KO-004-local-first-acceptance.md`。
+受阻的 2 条都是「托盘右键 → 退出」的自动化点击：本次会话的任务栏/托盘未暴露给 UI Automation，
+同一脚本对 0.1.2 也同样失败，而历史上曾成功点到过，因此判为环境受限，需人工点一次确认。
 
 ## 后端 49 条覆盖的范围
 
@@ -63,7 +68,7 @@
 | 项 | 为什么没做 |
 |---|---|
 | Docker 镜像实际构建 | 开发环境无 Docker 引擎（WSL 被安全策略封锁） |
-| 容器内 `GET /downloads/knowledge-os-sync-1.1.1.zip` | 同上；只在本地 uvicorn 上验过 200 + 哈希一致 |
+| 容器内 `GET /downloads/knowledge-os-sync-1.1.3.zip` | 同上；只在本地 uvicorn 上验过 200 + 哈希一致 |
 | 生产部署、HTTPS、真实域名 | 本轮不部署 |
 | 真实模型供应商请求 | 没有可用密钥；测试用 MockTransport 与测试适配器 |
 | 备份/恢复到真实 MySQL | 脚本与语法检查有，生产库恢复未做 |

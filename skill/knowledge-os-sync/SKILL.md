@@ -2,7 +2,7 @@
 name: knowledge-os-sync
 description: 把一次学习整理成结构化的「学习更新包」，提交到自部署的 AI Knowledge OS（AI Tree）待审区，由用户在网页端确认后生成新版本。适用于用户说「同步这次学习」「把这个整理进知识树」「提交学习更新」「knowledge os sync」。不扫描其他聊天、不自动应用、不声明掌握等级。
 agent_created: true
-version: 1.1.1
+version: 1.1.3
 ---
 
 # Knowledge OS 学习更新同步
@@ -31,16 +31,31 @@ Knowledge OS。提交只进入待审区，**用户在网页端点确认后才生
 
 ## 前置：一次性配置（每个用户一次）
 
-凭据由用户在平台网页生成：打开站点 → 右上「导入 / 同步」→「智能体同步」→「生成凭据」。
-明文只显示一次，让用户自己保存，**不要贴进聊天**。
+提交目标二选一：**本机 AI Tree 桌面端**（本地优先，默认推荐）或**云端平台**。配置里记录目标，
+`status`/`submit` 每次都会显示当前目标；本地提交失败**不会**自动改道云端。
+
+**方式 A · 本机桌面端（本地优先）**：桌面端正在运行时执行
+
+```bash
+python <skill>/scripts/ko_sync.py config --local --token-stdin
+```
+
+地址自动从本机 AI Tree 的运行信息（`server.json`）发现，无需手动填写。
+同步凭据仍由用户生成：桌面端「导入 / 同步」→「智能体同步」→「生成凭据」，明文只显示一次。
+
+**方式 B · 云端平台**：凭据由用户在平台网页生成 →
 
 ```bash
 python <skill>/scripts/ko_sync.py config --url https://<平台地址> --token-stdin
 # 然后把凭据通过标准输入喂进去（例如 printf '%s\n' "$TOKEN" | ... 或交互粘贴）
+```
+
+```bash
 python <skill>/scripts/ko_sync.py status
 ```
 
-`status` 打印账号、当前版本、待审数量。这是唯一推荐的连通性验证方式。
+`status` 打印当前提交目标、账号、当前版本、待审数量。这是唯一推荐的连通性验证方式。
+若配置目标是本机而桌面端未运行，`status` 会明确报「本机 AI Tree 不可达」，不会回退云端。
 
 规则（硬性）：
 - 凭据只写进 `~/.ko-sync/config.json`（0600）。**不要**写进仓库、Skill 目录、命令行参数或日志。

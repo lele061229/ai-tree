@@ -1,7 +1,7 @@
 import time
 from fastapi import Request
 from sqlalchemy.dialects.mysql import MEDIUMTEXT
-from sqlalchemy import JSON, Integer, String, Text, UniqueConstraint, create_engine
+from sqlalchemy import JSON, Integer, String, Text, UniqueConstraint, create_engine, event
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -117,11 +117,29 @@ class Progress(Base):
     task_index: Mapped[int] = mapped_column(Integer, primary_key=True)
     done: Mapped[bool] = mapped_column(default=False)
 
+def _is_memory_sqlite(url):
+    return url == 'sqlite://' or ':memory:' in url or 'mode=memory' in url
+
 def make_database(url):
     options = {'pool_pre_ping': True}
     if url.startswith('sqlite'):
-        options.update(connect_args={'check_same_thread': False}, poolclass=StaticPool)
+        if _is_memory_sqlite(url):
+            # 内存库（测试用）：所有线程必须共享同一个连接才有数据。
+            options.update(connect_args={'check_same_thread': False}, poolclass=StaticPool)
+        else:
+            # 文件库（桌面版本地数据）：StaticPool 的单连接在多线程并发写时会
+            # 触发 sqlite3 "bad parameter or other API misuse"。改用连接池里的
+            # 独立连接 + WAL，并发写由 busy_timeout 排队串行化。
+            options.update(connect_args={'check_same_thread': False, 'timeout': 30})
     engine = create_engine(url, **options)
+    if url.startswith('sqlite') and not _is_memory_sqlite(url):
+        @event.listens_for(engine, 'connect')
+        def _sqlite_pragma(dbapi_connection, connection_record):
+            cursor = dbapi_connection.cursor()
+            cursor.execute('PRAGMA journal_mode=WAL')
+            cursor.execute('PRAGMA busy_timeout=30000')
+            cursor.execute('PRAGMA synchronous=NORMAL')
+            cursor.close()
     return engine, sessionmaker(engine, expire_on_commit=False)
 
 def get_db(request: Request):
